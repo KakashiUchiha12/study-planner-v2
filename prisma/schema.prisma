@@ -1,0 +1,376 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Subject {
+  id                String         @id @default(cuid())
+  userId            String         @map("user_id")
+  name              String
+  color             String         @default("#3B82F6")
+  description       String?
+  code              String?
+  credits           Int            @default(3)
+  instructor        String?
+  totalChapters     Int            @default(0) @map("total_chapters")
+  completedChapters Int            @default(0) @map("completed_chapters")
+  progress          Float          @default(0.0)
+  nextExam          DateTime?      @map("next_exam")
+  assignmentsDue    Int            @default(0) @map("assignments_due")
+  order             Int            @default(0)
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  chapters          Chapter[]
+  studyGoals        StudyGoal[]
+  studySessions     StudySession[]
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files             SubjectFile[]
+  tasks             Task[]
+  testMarks         TestMark[]
+}
+
+model SubjectFile {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  subjectId     String   @map("subject_id")
+  fileName      String   @map("file_name")
+  originalName  String   @map("original_name")
+  fileType      String   @map("file_type")
+  mimeType      String   @map("mime_type")
+  fileSize      Int      @map("file_size")
+  filePath      String   @map("file_path")
+  thumbnailPath String?  @map("thumbnail_path")
+  category      String   @default("OTHER")
+  tags          String   @default("[]")
+  description   String?
+  isPublic      Boolean  @default(false) @map("is_public")
+  downloadCount Int      @default(0) @map("download_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject       Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([subjectId])
+  @@index([userId])
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  passwordHash      String             @map("password_hash")
+  image             String?
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  calendarEvents    CalendarEvent[]
+  dashboardSections DashboardSection[]
+  documents         Document[]
+  goals             Goal[]
+  notifications     Notification[]
+  skills            Skill[]
+  studyGoals        StudyGoal[]
+  studySessions     StudySession[]
+  subjects          Subject[]
+  subjectFiles      SubjectFile[]
+  tasks             Task[]
+  testMarks         TestMark[]
+  profile           UserProfile?
+  userSettings      UserSettings?
+}
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  fullName       String   @map("full_name")
+  university     String?
+  program        String?
+  currentYear    String?  @map("current_year")
+  gpa            String?
+  bio            String?
+  profilePicture String?  @map("profile_picture")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  userId      String     @map("user_id")
+  title       String
+  description String
+  targetDate  DateTime   @map("target_date")
+  category    String
+  status      String     @default("active")
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks       GoalTask[]
+
+  @@index([userId])
+  @@index([userId, order])
+}
+
+model GoalTask {
+  id        String    @id @default(cuid())
+  goalId    String    @map("goal_id")
+  title     String
+  completed Boolean   @default(false)
+  dueDate   DateTime? @map("due_date")
+  priority  String    @default("medium")
+  order     Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  goal      Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@index([goalId, order])
+}
+
+model Skill {
+  id          String           @id @default(cuid())
+  userId      String           @map("user_id")
+  name        String
+  description String
+  resources   String           @default("[]")
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectives  SkillObjective[]
+
+  @@index([userId])
+  @@index([userId, order])
+}
+
+model SkillObjective {
+  id          String    @id @default(cuid())
+  skillId     String    @map("skill_id")
+  title       String
+  completed   Boolean   @default(false)
+  description String?
+  targetDate  DateTime? @map("target_date")
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@index([skillId, order])
+}
+
+model Document {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  name          String
+  originalName  String   @map("original_name")
+  type          String
+  mimeType      String   @map("mime_type")
+  size          Int      @map("file_size")
+  filePath      String   @map("file_path")
+  thumbnailPath String?  @map("thumbnail_path")
+  tags          String   @default("[]")
+  isPinned      Boolean  @default(false) @map("is_pinned")
+  order         Int      @default(0)
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, order])
+  @@index([userId, isPinned])
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  subjectId     String?   @map("subject_id")
+  title         String
+  description   String?
+  priority      String    @default("medium")
+  status        String    @default("pending")
+  dueDate       DateTime? @map("due_date")
+  completedAt   DateTime? @map("completed_at")
+  category      String    @default("general")
+  estimatedTime Int?      @map("estimated_time")
+  timeSpent     Int?      @map("time_spent")
+  tags          String    @default("[]")
+  progress      Float?
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  subject       Subject?  @relation(fields: [subjectId], references: [id])
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudySession {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  subjectId       String?  @map("subject_id")
+  durationMinutes Int      @map("duration_minutes")
+  startTime       DateTime @map("start_time")
+  endTime         DateTime @map("end_time")
+  notes           String?
+  efficiency      Float?
+  sessionType     String?  @map("session_type")
+  productivity    Float?
+  topicsCovered   String?  @map("topics_covered")
+  materialsUsed   String?  @map("materials_used")
+  createdAt       DateTime @default(now()) @map("created_at")
+  subject         Subject? @relation(fields: [subjectId], references: [id])
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudyGoal {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  subjectId    String?   @map("subject_id")
+  title        String
+  targetHours  Int       @map("target_hours")
+  currentHours Int       @default(0) @map("current_hours")
+  deadline     DateTime?
+  status       String    @default("active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  subject      Subject?  @relation(fields: [subjectId], references: [id])
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TestMark {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  subjectId String   @map("subject_id")
+  testName  String   @map("test_name")
+  testType  String   @map("test_type")
+  score     Float
+  maxScore  Float    @map("max_score")
+  testDate  DateTime @map("test_date")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  mistakes  String?
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique @map("user_id")
+  taskReminders      Boolean  @default(true) @map("task_reminders")
+  emailNotifications Boolean  @default(false) @map("email_notifications")
+  pushNotifications  Boolean  @default(true) @map("push_notifications")
+  reminderTime       String   @default("09:00") @map("reminder_time")
+  studySessionAlerts Boolean  @default(true) @map("study_session_alerts")
+  defaultStudyGoal   Int      @default(240) @map("default_study_goal")
+  preferredStudyTime String   @default("18:00") @map("preferred_study_time")
+  breakReminders     Boolean  @default(true) @map("break_reminders")
+  breakDuration      Int      @default(15) @map("break_duration")
+  theme              String   @default("system")
+  dashboardLayout    String   @default("default") @map("dashboard_layout")
+  showProgressBars   Boolean  @default(true) @map("show_progress_bars")
+  compactMode        Boolean  @default(false) @map("compact_mode")
+  autoBackup         Boolean  @default(true) @map("auto_backup")
+  dataRetentionDays  Int      @default(365) @map("data_retention_days")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Chapter {
+  id             String     @id @default(cuid())
+  subjectId      String     @map("subject_id")
+  title          String
+  description    String?
+  order          Int
+  isCompleted    Boolean    @default(false) @map("is_completed")
+  estimatedHours Int        @default(2) @map("estimated_hours")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  subject        Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  materials      Material[]
+
+  @@unique([subjectId, order])
+}
+
+model Material {
+  id          String   @id @default(cuid())
+  chapterId   String   @map("chapter_id")
+  title       String
+  type        String
+  content     String?
+  fileUrl     String?  @map("file_url")
+  fileSize    Int?
+  duration    Int?
+  isCompleted Boolean  @default(false) @map("is_completed")
+  order       Int
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, order])
+}
+
+model DashboardSection {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  sectionKey   String   @map("section_key")
+  isExpanded   Boolean  @default(true) @map("is_expanded")
+  order        Int
+  isVisible    Boolean  @default(true) @map("is_visible")
+  customHeight Int?     @map("custom_height")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectionKey])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  message   String
+  timestamp DateTime @default(now())
+  read      Boolean  @default(false)
+  actionUrl String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([timestamp])
+}
+
+model CalendarEvent {
+  id                  String    @id @default(cuid())
+  userId              String    @map("user_id")
+  title               String
+  start               DateTime
+  end                 DateTime
+  type                String
+  description         String?
+  location            String?
+  priority            String
+  completed           Boolean   @default(false)
+  notificationEnabled Boolean   @default(false)
+  notificationTime    Int       @default(15)
+  color               String?
+  recurringType       String?
+  recurringInterval   Int?
+  recurringEndDate    DateTime?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([start])
+  @@index([type])
+  @@index([completed])
+}

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Study Planner Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=your-secret-here
+      - DATABASE_URL=postgresql://postgres:password@db:5432/studyplanner
+      - PUSHER_APP_ID=your-app-id
+      - PUSHER_KEY=your-key
+      - PUSHER_SECRET=your-secret
+      - PUSHER_CLUSTER=your-cluster
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - studyplanner-network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=studyplanner
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - studyplanner-network
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - studyplanner-network
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - studyplanner-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  studyplanner-network:
+    driver: bridge
