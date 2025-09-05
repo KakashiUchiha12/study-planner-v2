@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { dbService } from '@/lib/database'
 
@@ -212,7 +212,8 @@ export async function PATCH(request: NextRequest) {
     
     console.log('🔍 API Tasks PATCH: Reordering tasks:', {
       userId,
-      taskCount: body.tasks?.length || 0
+      taskCount: body.tasks?.length || 0,
+      tasks: body.tasks?.map((t: any) => ({ id: t.id, title: t.title, order: t.order }))
     })
     
     // Update task order in the database
@@ -222,19 +223,38 @@ export async function PATCH(request: NextRequest) {
       // Update each task with its new order using Int
       for (let i = 0; i < body.tasks.length; i++) {
         const task = body.tasks[i]
-        await dbService.getPrisma().task.update({
+        console.log(`🔍 API Tasks PATCH: Updating task ${task.id} (${task.title}) to order ${i}`)
+        
+        const result = await dbService.getPrisma().task.update({
           where: { id: task.id, userId: userId },
           data: { order: i }
         })
+        
+        console.log(`✅ API Tasks PATCH: Task ${task.id} updated successfully, new order: ${result.order}`)
       }
       
       console.log('✅ API Tasks PATCH: Task order updated successfully in database')
-      return NextResponse.json({ success: true, message: 'Task order updated successfully' })
+      
+      // Verify the update by fetching the updated tasks
+      const updatedTasks = await dbService.getPrisma().task.findMany({
+        where: { userId: userId },
+        select: { id: true, title: true, order: true },
+        orderBy: { order: 'asc' }
+      })
+      
+      console.log('🔍 API Tasks PATCH: Verification - tasks after update:', updatedTasks)
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Task order updated successfully',
+        updatedOrder: updatedTasks
+      })
     }
     
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   } catch (error) {
     console.error('Failed to update task order:', error)
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json(
       { error: 'Failed to update task order' },
       { status: 500 }
