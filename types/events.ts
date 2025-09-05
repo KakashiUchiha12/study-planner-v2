@@ -11,11 +11,9 @@ export interface CalendarEvent {
   notificationEnabled: boolean;
   notificationTime: number; // minutes before event
   color?: string;
-  recurring?: {
-    type: 'daily' | 'weekly' | 'monthly';
-    interval: number;
-    endDate?: Date;
-  };
+  recurringType?: 'daily' | 'weekly' | 'monthly';
+  recurringInterval?: number;
+  recurringEndDate?: Date;
 }
 
 export interface StudyPlan {

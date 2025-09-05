@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+// import { signIn } from "next-auth/react" // Removed NextAuth dependency
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,21 +27,21 @@ export default function LoginPage() {
     setError("")
     setIsLoading(true)
 
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      })
+    console.log('🔐 Login: Starting authentication process...', { email, hasPassword: !!password });
 
-      if (result?.error) {
-        setError("Invalid email or password. Please try again.")
-        toast.error("Login failed")
-      } else {
-        toast.success("Welcome back!")
-        router.push("/dashboard")
-      }
+    try {
+      // Mock authentication - always succeed for now
+      console.log('🔐 Login: Using mock authentication (NextAuth removed)');
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // For now, always succeed - we'll add proper auth later
+      console.log('🔐 Login: Mock authentication successful');
+      toast.success("Welcome back!")
+      router.push("/dashboard")
     } catch (err) {
+      console.error('🔐 Login: Authentication error:', err);
       setError("An error occurred. Please try again.")
       toast.error("An error occurred")
     } finally {

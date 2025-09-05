@@ -2,17 +2,17 @@ export interface Task {
   id: string
   title: string
   description?: string | null
-  status: string
+  status: 'pending' | 'in_progress' | 'completed'
   createdAt: Date
   updatedAt: Date
-  dueDate?: Date
-  completedAt?: Date
+  dueDate?: Date | null
+  completedAt?: Date | null
   priority: 'low' | 'medium' | 'high'
   category: string
-  estimatedTime?: number
-  timeSpent?: number
+  estimatedTime?: number | null
+  timeSpent?: number | null
   tags: string
-  progress?: number
+  progress?: number | null
   userId: string
   subjectId?: string | null
   order: number
@@ -22,14 +22,16 @@ export interface Subject {
   id: string
   name: string
   color: string
-  description?: string
-  code?: string
+  description?: string | null
+  code?: string | null
   credits: number
-  instructor?: string
+  instructor?: string | null
   totalChapters: number
   completedChapters: number
-  progress: number
-  nextExam?: Date
+  totalMaterials: number
+  completedMaterials: number
+  totalFiles: number
+  nextExam?: Date | null
   assignmentsDue: number
   createdAt: Date
   updatedAt: Date
@@ -39,21 +41,23 @@ export interface Subject {
 export interface StudySession {
   id: string
   userId: string
-  subjectId?: string
+  subjectId?: string | null
   durationMinutes: number
   startTime: Date
   endTime: Date
-  notes?: string
-  efficiency?: number
-  sessionType?: string
-  productivity?: number
-  topicsCovered?: string
-  materialsUsed?: string
+  notes?: string | null
+  efficiency?: number | null
+  sessionType?: string | null
+  productivity?: number | null
+  topicsCovered?: string | null
+  materialsUsed?: string | null
   createdAt: Date
+  updatedAt: Date
 }
 
 export interface TestMark {
   id: string
+  userId: string
   testDate: Date
   subjectId: string
   testName: string
@@ -80,5 +84,9 @@ export interface Material {
   type: 'textbook' | 'video' | 'article' | 'other'
   files: string[]
   links: string[]
-  createdAt: string
+  createdAt: Date
+  updatedAt: Date
+  userId: string
+  subjectId?: string | null
+  chapterId?: string | null
 }

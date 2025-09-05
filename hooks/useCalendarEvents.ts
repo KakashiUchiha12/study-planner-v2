@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { CalendarEvent } from '@/types/events'
 import { useNotifications } from './useNotifications'
 import toast from 'react-hot-toast'
@@ -50,6 +50,11 @@ export function useCalendarEvents() {
 
     try {
       setError(null)
+      
+      console.log('📅 Creating calendar event with data:', eventData)
+      console.log('📅 Event data type:', typeof eventData)
+      console.log('📅 Start date type:', typeof eventData.start, 'value:', eventData.start)
+      console.log('📅 End date type:', typeof eventData.end, 'value:', eventData.end)
       
       const response = await fetch('/api/calendar-events', {
         method: 'POST',

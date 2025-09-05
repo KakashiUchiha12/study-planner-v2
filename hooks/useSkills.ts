@@ -1,93 +1,76 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
-import { Skill, SkillObjective, CreateSkillData, UpdateSkillData, CreateSkillObjectiveData, UpdateSkillObjectiveData } from '@/lib/database'
+import { useSession } from './use-session-simple'
+import { Skill, SkillObjective } from '@prisma/client'
 
 interface UseSkillsReturn {
   skills: Skill[]
   loading: boolean
   error: string | null
-  createSkill: (data: CreateSkillData) => Promise<void>
-  updateSkill: (skillId: string, data: UpdateSkillData) => Promise<void>
+  createSkill: (data: any) => Promise<void>
+  updateSkill: (skillId: string, data: any) => Promise<void>
   deleteSkill: (skillId: string) => Promise<void>
-  addSkillObjective: (skillId: string, data: CreateSkillObjectiveData) => Promise<void>
-  updateSkillObjective: (objectiveId: string, data: UpdateSkillObjectiveData) => Promise<void>
+  addSkillObjective: (skillId: string, objective: Omit<SkillObjective, 'id' | 'skillId' | 'createdAt' | 'updatedAt'>) => Promise<SkillObjective>
+  updateSkillObjective: (skillId: string, objectiveId: string, updates: Partial<SkillObjective>) => Promise<SkillObjective>
   toggleSkillObjective: (objectiveId: string) => Promise<void>
-  deleteSkillObjective: (objectiveId: string) => Promise<void>
+  deleteSkillObjective: (skillId: string, objectiveId: string) => Promise<void>
   reorderSkills: (skillIds: string[]) => Promise<void>
   reorderSkillObjectives: (skillId: string, objectiveIds: string[]) => Promise<void>
   refreshSkills: () => Promise<void>
 }
 
-export function useSkills(): UseSkillsReturn {
+export const useSkills = () => {
   const { data: session, status } = useSession()
   const [skills, setSkills] = useState<Skill[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchSkills = useCallback(async () => {
-    // Only fetch if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
-      setLoading(false)
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
       return
     }
 
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await fetch('/api/skills', {
-        credentials: 'include' // Include session cookies
-      })
-      
+      const response = await fetch('/api/skills')
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to fetch skills')
       }
-      
       const data = await response.json()
       setSkills(data)
     } catch (err) {
-      console.error('Error fetching skills:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch skills')
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [(session?.user as any)?.id, status])
 
-  const createSkill = useCallback(async (data: CreateSkillData) => {
-    // Only create if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
-      throw new Error('User not authenticated')
+  const createSkill = useCallback(async (data: any) => {
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
+      throw new Error('Authentication required. Please log in.')
     }
 
     try {
-      setLoading(true)
       setError(null)
-      
       const response = await fetch('/api/skills', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include session cookies
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to create skill')
       }
-      
+
       const newSkill = await response.json()
-      setSkills(prev => [newSkill, ...prev])
+      setSkills(prev => [...prev, newSkill])
     } catch (err) {
-      console.error('Error creating skill:', err)
       setError(err instanceof Error ? err.message : 'Failed to create skill')
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [status, (session?.user as any)?.id])
 
-  const updateSkill = useCallback(async (skillId: string, data: UpdateSkillData) => {
+  const updateSkill = useCallback(async (skillId: string, data: any) => {
     try {
       setLoading(true)
       setError(null)
@@ -144,152 +127,129 @@ export function useSkills(): UseSkillsReturn {
     }
   }, [])
 
-  const addSkillObjective = useCallback(async (skillId: string, data: CreateSkillObjectiveData) => {
+  const addSkillObjective = useCallback(async (skillId: string, objective: Omit<SkillObjective, 'id' | 'skillId' | 'createdAt' | 'updatedAt'>) => {
     try {
-      setLoading(true)
       setError(null)
-      
       const response = await fetch(`/api/skills/${skillId}/objectives`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include session cookies
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(objective)
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to add objective to skill')
       }
-      
+
       const newObjective = await response.json()
-      setSkills(prev => prev.map(skill => 
-        skill.id === skillId 
-          ? { ...skill, objectives: [...skill.objectives, newObjective] }
-          : skill
-      ))
+      
+      setSkills(prevSkills => 
+        prevSkills.map(skill => 
+          skill.id === skillId 
+            ? { ...skill, objectives: [...(skill as any).objectives || [], newObjective] }
+            : skill
+        )
+      )
+
+      return newObjective
     } catch (err) {
-      console.error('Error adding skill objective:', err)
-      setError(err instanceof Error ? err.message : 'Failed to add skill objective')
+      setError(err instanceof Error ? err.message : 'Failed to add objective to skill')
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [])
 
-  const updateSkillObjective = useCallback(async (objectiveId: string, data: UpdateSkillObjectiveData) => {
+  const updateSkillObjective = useCallback(async (skillId: string, objectiveId: string, updates: Partial<SkillObjective>) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      // Find the skill that contains this objective
-      const skill = skills.find(s => s.objectives.some(o => o.id === objectiveId))
-      if (!skill) {
-        throw new Error('Skill not found for objective')
-      }
-      
-      const response = await fetch(`/api/skills/${skill.id}/objectives/${objectiveId}`, {
+      const response = await fetch(`/api/skills/${skillId}/objectives/${objectiveId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to update objective')
       }
-      
+
       const updatedObjective = await response.json()
-      setSkills(prev => prev.map(s => 
-        s.id === skill.id 
-          ? { ...s, objectives: s.objectives.map(o => o.id === objectiveId ? updatedObjective : o) }
-          : s
-      ))
+      
+      setSkills(prevSkills => 
+        prevSkills.map(s => 
+          s.id === skillId 
+            ? { ...s, objectives: (s as any).objectives?.map((o: any) => o.id === objectiveId ? updatedObjective : o) || [] }
+            : s
+        )
+      )
+
+      return updatedObjective
     } catch (err) {
-      console.error('Error updating skill objective:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update skill objective')
+      setError(err instanceof Error ? err.message : 'Failed to update objective')
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [skills])
+  }, [])
 
   const toggleSkillObjective = useCallback(async (objectiveId: string) => {
     try {
-      setLoading(true)
       setError(null)
-      
       // Find the skill that contains this objective
-      const skill = skills.find(s => s.objectives.some(o => o.id === objectiveId))
+      const skill = skills.find(s => (s as any).objectives?.some((o: any) => o.id === objectiveId))
       if (!skill) {
         throw new Error('Skill not found for objective')
       }
-      
-      const objective = skill.objectives.find(o => o.id === objectiveId)
+
+      const objective = (skill as any).objectives?.find((o: any) => o.id === objectiveId)
       if (!objective) {
         throw new Error('Objective not found')
       }
-      
+
       const response = await fetch(`/api/skills/${skill.id}/objectives/${objectiveId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ completed: !objective.completed }),
+        }
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to toggle objective')
       }
-      
+
       const updatedObjective = await response.json()
-      setSkills(prev => prev.map(s => 
-        s.id === skill.id 
-          ? { ...s, objectives: s.objectives.map(o => o.id === objectiveId ? updatedObjective : o) }
-          : s
-      ))
+      
+      setSkills(prevSkills => 
+        prevSkills.map(s => 
+          s.id === skill.id 
+            ? { ...s, objectives: (s as any).objectives?.map((o: any) => o.id === objectiveId ? updatedObjective : o) || [] }
+            : s
+        )
+      )
     } catch (err) {
-      console.error('Error toggling skill objective:', err)
-      setError(err instanceof Error ? err.message : 'Failed to toggle skill objective')
+      setError(err instanceof Error ? err.message : 'Failed to toggle objective')
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [skills])
 
-  const deleteSkillObjective = useCallback(async (objectiveId: string) => {
+  const deleteSkillObjective = useCallback(async (skillId: string, objectiveId: string) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      // Find the skill that contains this objective
-      const skill = skills.find(s => s.objectives.some(o => o.id === objectiveId))
-      if (!skill) {
-        throw new Error('Skill not found for objective')
-      }
-      
-      const response = await fetch(`/api/skills/${skill.id}/objectives/${objectiveId}`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/skills/${skillId}/objectives/${objectiveId}`, {
+        method: 'DELETE'
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to delete objective')
       }
-      
-      setSkills(prev => prev.map(s => 
-        s.id === skill.id 
-          ? { ...s, objectives: s.objectives.filter(o => o.id !== objectiveId) }
-          : s
-      ))
+
+      setSkills(prevSkills => 
+        prevSkills.map(s => 
+          s.id === skillId 
+            ? { ...s, objectives: (s as any).objectives?.filter((o: any) => o.id !== objectiveId) || [] }
+            : s
+        )
+      )
     } catch (err) {
-      console.error('Error deleting skill objective:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete skill objective')
+      setError(err instanceof Error ? err.message : 'Failed to delete objective')
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [skills])
+  }, [])
 
   const reorderSkills = useCallback(async (skillIds: string[]) => {
     try {
@@ -327,39 +287,34 @@ export function useSkills(): UseSkillsReturn {
 
   const reorderSkillObjectives = useCallback(async (skillId: string, objectiveIds: string[]) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      const skill = skills.find(s => s.id === skillId)
-      if (!skill) {
-        throw new Error('Skill not found')
+      const response = await fetch(`/api/skills/${skillId}/objectives/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objectiveIds })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reorder objectives')
       }
-      
-      // Optimistically update the UI
-      const reorderedObjectives = objectiveIds.map(id => skill.objectives.find(o => o.id === id)).filter(Boolean) as SkillObjective[]
-      setSkills(prev => prev.map(s => 
-        s.id === skillId ? { ...s, objectives: reorderedObjectives } : s
-      ))
-      
-      // TODO: Implement reorder API call when endpoint is available
-      // const response = await fetch(`/api/skills/${skillId}/objectives/reorder`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ objectiveIds }),
-      // })
-      
-      // if (!response.ok) {
-      //   throw new Error(`HTTP error! status: ${response.status}`)
-      // }
+
+      const skill = skills.find(s => s.id === skillId)
+      if (skill) {
+        const reorderedObjectives = objectiveIds.map(id => (skill as any).objectives?.find((o: any) => o.id === id)).filter(Boolean) as SkillObjective[]
+        
+        setSkills(prevSkills => 
+          prevSkills.map(s => 
+            s.id === skillId 
+              ? { ...s, objectives: reorderedObjectives }
+              : s
+          )
+        )
+      }
     } catch (err) {
-      console.error('Error reordering skill objectives:', err)
-      setError(err instanceof Error ? err.message : 'Failed to reorder skill objectives')
-      // Revert optimistic update
-      await fetchSkills()
-    } finally {
-      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to reorder objectives')
+      throw err
     }
-  }, [skills, fetchSkills])
+  }, [skills])
 
   const refreshSkills = useCallback(async () => {
     await fetchSkills()

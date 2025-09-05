@@ -1,5 +1,27 @@
 import { dbService } from './database-service'
-import { TestMark, Prisma } from '@prisma/client'
+import { TestMark } from '@prisma/client'
+
+interface TestMarkStatistics {
+  totalTests: number
+  averageScore: number
+  highestScore: number
+  lowestScore: number
+  scoreDistribution: Record<string, number>
+  totalPercentage: number
+}
+
+interface TestMarkTrend {
+  date: Date
+  averageScore: number
+  totalTests: number
+}
+
+interface MistakeData {
+  question: string
+  correctAnswer: string
+  userAnswer: string
+  explanation?: string
+}
 
 export interface CreateTestMarkData {
   subjectId: string
@@ -9,7 +31,7 @@ export interface CreateTestMarkData {
   maxScore: number
   testDate: Date
   notes?: string
-  mistakes?: any[]
+  mistakes?: MistakeData[]
 }
 
 export interface UpdateTestMarkData {
@@ -20,7 +42,7 @@ export interface UpdateTestMarkData {
   maxScore?: number
   testDate?: Date
   notes?: string
-  mistakes?: any[]
+  mistakes?: MistakeData[]
 }
 
 export class TestMarkService {
@@ -46,7 +68,7 @@ export class TestMarkService {
       const serializedTestMarks = testMarks.map(testMark => ({
         ...testMark,
         // Convert any BigInt fields to regular numbers
-        ...(testMark as any).order && { order: Number((testMark as any).order) }
+        ...(testMark as unknown as { order?: bigint }).order && { order: Number((testMark as unknown as { order: bigint }).order) }
       }))
       
       return serializedTestMarks
@@ -115,7 +137,7 @@ export class TestMarkService {
   // Update an existing test mark
   async updateTestMark(testMarkId: string, data: UpdateTestMarkData): Promise<TestMark> {
     try {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         subjectId: data.subjectId,
         testName: data.testName,
         testType: data.testType,
@@ -205,135 +227,7 @@ export class TestMarkService {
     }
   }
 
-  // Get test performance statistics
-  async getTestPerformanceStatistics(userId: string): Promise<{
-    totalTests: number
-    averagePercentage: number
-    highestPercentage: number
-    lowestPercentage: number
-    gradeDistribution: Record<string, number>
-    subjectPerformance: { subjectId: string; subjectName: string; averagePercentage: number; testCount: number }[]
-  }> {
-    try {
-      const testMarks = await this.prisma.testMark.findMany({
-        where: { userId: userId },
-        include: { subject: true }
-      })
 
-      if (testMarks.length === 0) {
-        return {
-          totalTests: 0,
-          averagePercentage: 0,
-          highestPercentage: 0,
-          lowestPercentage: 0,
-          gradeDistribution: {},
-          subjectPerformance: []
-        }
-      }
-
-      const totalTests = testMarks.length
-      const totalPercentage = testMarks.reduce((sum, test) => sum + test.percentage, 0)
-      const averagePercentage = Math.round(totalPercentage / totalTests)
-      const highestPercentage = Math.max(...testMarks.map(test => test.percentage))
-      const lowestPercentage = Math.min(...testMarks.map(test => test.percentage))
-
-      // Grade distribution
-      const gradeDistribution: Record<string, number> = {}
-      testMarks.forEach(test => {
-        gradeDistribution[test.grade] = (gradeDistribution[test.grade] || 0) + 1
-      })
-
-      // Subject performance
-      const subjectMap = new Map<string, { totalPercentage: number; testCount: number; subjectName: string }>()
-      testMarks.forEach(test => {
-        const subjectId = test.subjectId
-        const current = subjectMap.get(subjectId) || { totalPercentage: 0, testCount: 0, subjectName: test.subject?.name || 'Unknown' }
-        
-        subjectMap.set(subjectId, {
-          totalPercentage: current.totalPercentage + test.percentage,
-          testCount: current.testCount + 1,
-          subjectName: current.subjectName
-        })
-      })
-
-      const subjectPerformance = Array.from(subjectMap.entries()).map(([subjectId, data]) => ({
-        subjectId,
-        subjectName: data.subjectName,
-        averagePercentage: Math.round(data.totalPercentage / data.testCount),
-        testCount: data.testCount
-      }))
-
-      return {
-        totalTests,
-        averagePercentage,
-        highestPercentage,
-        lowestPercentage,
-        gradeDistribution,
-        subjectPerformance
-      }
-    } catch (error) {
-      console.error('Failed to get test performance statistics:', error)
-      throw new Error('Failed to fetch test performance statistics')
-    }
-  }
-
-  // Get recent test performance trend
-  async getRecentTestPerformanceTrend(userId: string, days: number = 30): Promise<{
-    date: string
-    averagePercentage: number
-    testCount: number
-  }[]> {
-    try {
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - days)
-
-      const testMarks = await this.prisma.testMark.findMany({
-        where: {
-          userId: userId,
-          testDate: { gte: cutoffDate }
-        },
-        orderBy: { testDate: 'asc' }
-      })
-
-      // Group by date and calculate daily averages
-      const dailyMap = new Map<string, { totalPercentage: number; testCount: number }>()
-      
-      testMarks.forEach(test => {
-        const dateKey = test.testDate.toISOString().split('T')[0]
-        const current = dailyMap.get(dateKey) || { totalPercentage: 0, testCount: 0 }
-        
-        dailyMap.set(dateKey, {
-          totalPercentage: current.totalPercentage + test.percentage,
-          testCount: current.testCount + 1
-        })
-      })
-
-      return Array.from(dailyMap.entries()).map(([date, data]) => ({
-        date,
-        averagePercentage: Math.round(data.totalPercentage / data.testCount),
-        testCount: data.testCount
-      }))
-    } catch (error) {
-      console.error('Failed to get recent test performance trend:', error)
-      throw new Error('Failed to fetch recent test performance trend')
-    }
-  }
-
-  // Calculate grade based on percentage
-  private calculateGrade(percentage: number): string {
-    if (percentage >= 90) return 'A+'
-    if (percentage >= 85) return 'A'
-    if (percentage >= 80) return 'A-'
-    if (percentage >= 75) return 'B+'
-    if (percentage >= 70) return 'B'
-    if (percentage >= 65) return 'B-'
-    if (percentage >= 60) return 'C+'
-    if (percentage >= 55) return 'C'
-    if (percentage >= 50) return 'C-'
-    if (percentage >= 45) return 'D+'
-    if (percentage >= 40) return 'D'
-    return 'F'
-  }
 
   // Ensure the mistakes column exists in the database
   async ensureMistakesColumnExists(): Promise<void> {
@@ -341,13 +235,119 @@ export class TestMarkService {
       // Try to add the mistakes column if it doesn't exist
       await this.prisma.$executeRaw`ALTER TABLE TestMark ADD COLUMN mistakes TEXT`
       console.log('✅ Mistakes column added successfully')
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If column already exists, this is fine
-      if (error.message.includes('duplicate column name') || error.message.includes('already exists')) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('duplicate column name') || errorMessage.includes('already exists')) {
         console.log('ℹ️ Mistakes column already exists')
       } else {
         console.error('❌ Failed to add mistakes column:', error)
       }
+    }
+  }
+
+  async getTestMarkStatistics(userId: string, subjectId?: string): Promise<TestMarkStatistics> {
+    try {
+      const whereClause: { userId: string; subjectId?: string } = { userId }
+      if (subjectId) {
+        whereClause.subjectId = subjectId
+      }
+
+      const testMarks = await this.prisma.testMark.findMany({
+        where: whereClause,
+        include: { subject: true }
+      })
+
+      if (testMarks.length === 0) {
+        return {
+          totalTests: 0,
+          averageScore: 0,
+          highestScore: 0,
+          lowestScore: 0,
+          scoreDistribution: {},
+          totalPercentage: 0
+        }
+      }
+
+      // Calculate statistics based on score/maxScore
+      const totalPercentage = testMarks.reduce((sum, test) => sum + (test.score / test.maxScore * 100), 0)
+      const averagePercentage = totalPercentage / testMarks.length
+      const highestPercentage = Math.max(...testMarks.map(test => test.score / test.maxScore * 100))
+      const lowestPercentage = Math.min(...testMarks.map(test => test.score / test.maxScore * 100))
+
+      // Group by score ranges
+      const scoreDistribution: Record<string, number> = {}
+      testMarks.forEach(test => {
+        const percentage = Math.round((test.score / test.maxScore) * 100)
+        const range = this.getScoreRange(percentage)
+        scoreDistribution[range] = (scoreDistribution[range] || 0) + 1
+      })
+
+      return {
+        totalTests: testMarks.length,
+        averageScore: Math.round(averagePercentage),
+        highestScore: Math.round(highestPercentage),
+        lowestScore: Math.round(lowestPercentage),
+        scoreDistribution,
+        totalPercentage: Math.round(totalPercentage)
+      }
+    } catch (error) {
+      console.error('Error getting test mark statistics:', error)
+      throw new Error('Failed to get test mark statistics')
+    }
+  }
+
+  private getScoreRange(percentage: number): string {
+    if (percentage >= 90) return '90-100%'
+    if (percentage >= 80) return '80-89%'
+    if (percentage >= 70) return '70-79%'
+    if (percentage >= 60) return '60-69%'
+    if (percentage >= 50) return '50-59%'
+    return 'Below 50%'
+  }
+
+  async getTestMarkTrends(userId: string, subjectId?: string, _days: number = 30): Promise<TestMarkTrend[]> {
+    try {
+      const whereClause: { userId: string; subjectId?: string } = { userId }
+      if (subjectId) {
+        whereClause.subjectId = subjectId
+      }
+
+      const testMarks = await this.prisma.testMark.findMany({
+        where: whereClause,
+        orderBy: { testDate: 'asc' }
+      })
+
+      if (testMarks.length === 0) {
+        return []
+      }
+
+      // Group by date and calculate average
+      const trends: TestMarkTrend[] = []
+      const groupedByDate = testMarks.reduce((acc, test) => {
+        const date = test.testDate.toISOString().split('T')[0]
+        if (!acc[date]) {
+          acc[date] = []
+        }
+        acc[date].push(test)
+        return acc
+      }, {} as Record<string, typeof testMarks>)
+
+      Object.entries(groupedByDate).forEach(([date, tests]) => {
+        const totalPercentage = tests.reduce((sum, test) => sum + (test.score / test.maxScore * 100), 0)
+        const averagePercentage = totalPercentage / tests.length
+
+        trends.push({
+          date: new Date(date),
+          averageScore: Math.round(averagePercentage),
+          totalTests: tests.length
+        })
+      })
+
+      return trends
+    } catch (error) {
+      console.error('Error getting test mark trends:', error)
+      throw new Error('Failed to get test mark trends')
     }
   }
 }

@@ -74,11 +74,15 @@ export async function thumbFromPdf(file: File): Promise<string> {
     console.log('Starting PDF thumbnail generation...');
     
     // Dynamically import PDF.js
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
-    console.log('PDF.js loaded successfully');
-    
-    // Set worker source
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    // Try to use PDF.js from CDN
+    let pdfjsLib;
+    if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+      pdfjsLib = (window as any).pdfjsLib;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      console.log('PDF.js loaded from CDN');
+    } else {
+      throw new Error('PDF.js library not available');
+    }
     
     const buf = await file.arrayBuffer();
     console.log('File converted to ArrayBuffer, size:', buf.byteLength);

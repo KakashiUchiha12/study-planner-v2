@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = await requireAuth()
+    await requireAuth() // Verify authentication
     const body = await request.json()
 
     if (!body.id) {
@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = await requireAuth()
+    await requireAuth() // Verify authentication
     const { searchParams } = new URL(request.url)
     const skillId = searchParams.get('id')
 

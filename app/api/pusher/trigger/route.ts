@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { pusherServer } from "@/lib/pusher"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 
 export async function POST(req: NextRequest) {
   try {

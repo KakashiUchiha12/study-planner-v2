@@ -83,11 +83,17 @@ interface Task {
   description?: string | null
   subjectId?: string | null
   status: string
-  completedAt?: string | Date | null
-  dueDate?: string | Date | null
-  createdAt: string | Date
-  priority?: string
+  completedAt?: Date | null
+  dueDate?: Date | null
+  createdAt: Date
+  updatedAt: Date
+  priority?: string | 'low' | 'medium' | 'high'
   estimatedTime?: number | null
+  timeSpent?: number | null
+  progress?: number | null
+  order?: number
+  category?: string
+  tags?: string
 }
 
 interface Subject {
@@ -102,8 +108,9 @@ interface Subject {
   completedChapters?: number
   totalMaterials?: number
   completedMaterials?: number
-  createdAt: string | Date
-  updatedAt: string | Date
+  totalFiles?: number
+  createdAt: Date
+  updatedAt: Date
 }
 
 interface AnalyticsData {
@@ -296,12 +303,16 @@ export function AdvancedAnalytics({ data }: AdvancedAnalyticsProps) {
       
       // Debug subject being processed
       if (process.env.NODE_ENV === 'development') {
+        const progress = subject.totalChapters && subject.totalChapters > 0 
+          ? Math.round((subject.completedChapters || 0) / subject.totalChapters * 100)
+          : 0
+        
         console.log(`Processing subject: ${subject.name}`, {
           id: subject.id,
           name: subject.name,
           totalChapters: subject.totalChapters,
           completedChapters: subject.completedChapters,
-          progress: subject.progress
+          progress: progress
         })
       }
       
@@ -419,7 +430,9 @@ export function AdvancedAnalytics({ data }: AdvancedAnalyticsProps) {
         }
 
                            // Calculate progress using dynamic utility
-              const progress = calculateProgress(subject.completedChapters || 0, subject.totalChapters || 0)
+              const progress = subject.totalChapters && subject.totalChapters > 0 
+          ? Math.round((subject.completedChapters || 0) / subject.totalChapters * 100)
+          : 0
               
                             // Calculate efficiency using dynamic utility with better handling
                const totalStudyTimeAllSubjects = sanitizedData.studySessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
@@ -575,7 +588,7 @@ export function AdvancedAnalytics({ data }: AdvancedAnalyticsProps) {
         ? Math.round(filteredSessions.reduce((sum, s) => sum + (s.productivity || 3), 0) / filteredSessions.length * 10) / 10
         : 0
     }
-  }, [data, timeRange])
+  }, [data, timeRange, sanitizedData.studySessions, sanitizedData.subjects, sanitizedData.tasks, sanitizedData.testMarks])
 
   const pieData = [
     { name: 'Completed', value: analytics.taskAnalysis.completed, color: COLORS[0] },
@@ -884,18 +897,11 @@ export function AdvancedAnalytics({ data }: AdvancedAnalyticsProps) {
                         <div className="space-y-2">
                           <div className="relative group">
                             {/* Progress Bar */}
-                            <div className="w-full bg-muted rounded-full h-3 relative">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
                               <div 
-                                className="bg-primary h-3 rounded-full transition-all duration-300" 
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                                 style={{ width: `${subject.progress}%` }}
-                              />
-                              {subject.totalChapters && subject.totalChapters > 0 && (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <span className="text-xs font-medium text-foreground drop-shadow-sm">
-                                    {subject.completedChapters || 0}/{subject.totalChapters}
-                                  </span>
-                                </div>
-                              )}
+                              ></div>
                             </div>
 
                             {/* Tooltip (Positioned Outside and Above the Card) */}

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { TestMark } from '@prisma/client'
 
 export function useTestMarks() {
@@ -8,11 +8,11 @@ export function useTestMarks() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Get user ID from session
-  const userId = session?.user?.id || 'demo-user-1'
+  // Get user ID from session with proper typing
+  const userId = (session?.user as any)?.id
 
-  // Load test marks from API
-  const loadTestMarks = useCallback(async (filters?: {
+  // Load test marks with filters
+  const loadTestMarksWithFilters = useCallback(async (filters?: {
     subjectId?: string
     testType?: string
     startDate?: string
@@ -24,7 +24,6 @@ export function useTestMarks() {
       setLoading(true)
       setError(null)
       
-      // Build query parameters
       const params = new URLSearchParams()
       if (filters?.subjectId && filters.subjectId !== 'all') {
         params.append('subjectId', filters.subjectId)
@@ -48,7 +47,40 @@ export function useTestMarks() {
       setTestMarks(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load test marks')
-      console.error('Failed to load test marks:', err)
+      // Only log in development mode to reduce console spam
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to load test marks:', err)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [userId])
+
+  // Load test marks
+  const loadTestMarks = useCallback(async () => {
+    if (!userId) return
+
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // For now, load all test marks without filters
+      // Filters can be added later when needed
+      const url = `/api/test-marks`
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch test marks')
+      }
+      
+      const data = await response.json()
+      setTestMarks(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load test marks')
+      // Only log in development mode to reduce console spam
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to load test marks:', err)
+      }
     } finally {
       setLoading(false)
     }
@@ -306,8 +338,17 @@ export function useTestMarks() {
 
   // Refresh test marks
   const refreshTestMarks = useCallback(() => {
-    loadTestMarks()
-  }, [loadTestMarks])
+    if (userId) {
+      // Call the API directly instead of depending on loadTestMarks
+      fetch('/api/test-marks')
+        .then(response => response.json())
+        .then(data => setTestMarks(data))
+        .catch(err => {
+          console.error('Failed to refresh test marks:', err)
+          setError(err instanceof Error ? err.message : 'Failed to refresh test marks')
+        })
+    }
+  }, [userId]) // Only depend on userId, not loadTestMarks
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -317,10 +358,12 @@ export function useTestMarks() {
     }
   }, [error])
 
-  // Load test marks on mount and when user changes
+  // Load test marks only once on mount when user is available
   useEffect(() => {
-    loadTestMarks()
-  }, [loadTestMarks])
+    if (userId) {
+      loadTestMarks()
+    }
+  }, [userId]) // Only depend on userId, not loadTestMarks
 
   return {
     testMarks,
@@ -329,6 +372,8 @@ export function useTestMarks() {
     createTestMark,
     updateTestMark,
     deleteTestMark,
+    loadTestMarks,
+    loadTestMarksWithFilters,
     getTestMarksBySubject,
     getTestMarksByDateRange,
     getTestMarksByGrade,

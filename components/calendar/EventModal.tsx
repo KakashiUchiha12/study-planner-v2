@@ -209,7 +209,9 @@ export default function EventModal({ event, slot, onSave, onDelete, onClose }: E
         end: currentEnd instanceof Date ? currentEnd : new Date(currentEnd),
         completed: event?.completed || false,
         color: event?.color,
-        recurring: event?.recurring,
+        recurringType: event?.recurringType,
+        recurringInterval: event?.recurringInterval,
+        recurringEndDate: event?.recurringEndDate,
       };
       
       console.log('💾 Processed event data:', eventData);

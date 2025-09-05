@@ -835,60 +835,16 @@ export function SubjectDetailDialog({
           try {
             // Try to parse as new structured format
             const parsed = JSON.parse(currentMaterial.content)
-            if (parsed.files && Array.isArray(parsed.files)) {
-              // New structured format - preserve existing files and add link
-              newContent = JSON.stringify({
-                files: parsed.files,
-                links: [...(parsed.links || []), {
-                  description: newLinkDescription,
-                  url: newLinkUrl
-                }]
-              })
-            } else if (currentMaterial.content.startsWith('FILES:')) {
-              // Handle old format - extract files and add link
-              try {
-                const filesPart = currentMaterial.content.substring(6)
-                // Find the end of the JSON by looking for the first non-JSON character
-                let jsonEnd = filesPart.length
-                for (let i = 0; i < filesPart.length; i++) {
-                  if (filesPart[i] === '\n' || filesPart[i] === '\r') {
-                    jsonEnd = i
-                    break
-                  }
-                }
-                const cleanJson = filesPart.substring(0, jsonEnd)
-                const existingFiles = JSON.parse(cleanJson)
-                
-                newContent = JSON.stringify({
-                  files: existingFiles,
-                  links: [{
-                    description: newLinkDescription,
-                    url: newLinkUrl
-                  }]
-                })
-              } catch (e2) {
-                console.error('Error parsing old format files:', e2)
-                // Fallback: just add the link
-                newContent = JSON.stringify({
-                  files: [],
-                  links: [{
-                    description: newLinkDescription,
-                    url: newLinkUrl
-                  }]
-                })
-              }
-            } else {
-              // Unknown format - just add the link
-              newContent = JSON.stringify({
-                files: [],
-                links: [{
-                  description: newLinkDescription,
-                  url: newLinkUrl
-                }]
-              })
-            }
+            // Store files and links separately in a structured format
+            newContent = JSON.stringify({
+              files: parsed.files || [],
+              links: [...parsed.links, {
+                description: newLinkDescription,
+                url: newLinkUrl
+              }]
+            })
           } catch (e) {
-            console.error('Error parsing existing content:', e)
+            console.error('Error parsing existing files:', e)
             // Fallback: just add the link
             newContent = JSON.stringify({
               files: [],
@@ -926,16 +882,10 @@ export function SubjectDetailDialog({
           })
         }
         
-        console.log('Adding link to material. New content:', newContent)
-        console.log('Current material before update:', currentMaterial)
-        console.log('Files to preserve:', currentMaterial?.content ? 'Will be extracted' : 'None')
-        
         // Update the material with the new content
         const updatedMaterial = await updateMaterial(materialId, {
           content: newContent
         })
-        
-        console.log('Updated material after adding link:', updatedMaterial)
         
       setNewLinkUrl("")
       setNewLinkDescription("")

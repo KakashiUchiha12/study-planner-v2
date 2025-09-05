@@ -89,8 +89,8 @@ export class StudySessionService {
           efficiency: data.efficiency || 0,
           sessionType: data.sessionType || 'Focused Study',
           productivity: data.productivity || 0,
-          topicsCovered: data.topicsCovered || [],
-          materialsUsed: data.materialsUsed || []
+          topicsCovered: data.topicsCovered ? data.topicsCovered.join(', ') : null,
+          materialsUsed: data.materialsUsed ? data.materialsUsed.join(', ') : null
         }
       })
     } catch (error) {
@@ -113,8 +113,8 @@ export class StudySessionService {
           efficiency: data.efficiency,
           sessionType: data.sessionType,
           productivity: data.productivity,
-          topicsCovered: data.topicsCovered,
-          materialsUsed: data.materialsUsed
+          topicsCovered: data.topicsCovered ? data.topicsCovered.join(', ') : null,
+          materialsUsed: data.materialsUsed ? data.materialsUsed.join(', ') : null
         }
       })
     } catch (error) {
@@ -210,13 +210,13 @@ export class StudySessionService {
   // Search study sessions
   async searchStudySessions(userId: string, query: string): Promise<StudySession[]> {
     try {
-      return await this.prisma.studySession.findMany({
+      const sessions = await this.prisma.studySession.findMany({
         where: {
-          userId: userId,
+          userId,
           OR: [
-            { notes: { contains: query, mode: 'insensitive' } },
-            { topicsCovered: { hasSome: [query] } },
-            { materialsUsed: { hasSome: [query] } }
+            { notes: { contains: query } },
+            { topicsCovered: { contains: query } },
+            { materialsUsed: { contains: query } }
           ]
         },
         include: {
@@ -224,8 +224,10 @@ export class StudySessionService {
         },
         orderBy: { startTime: 'desc' }
       })
+
+      return sessions
     } catch (error) {
-      console.error('Failed to search study sessions:', error)
+      console.error('Error searching study sessions:', error)
       throw new Error('Failed to search study sessions')
     }
   }

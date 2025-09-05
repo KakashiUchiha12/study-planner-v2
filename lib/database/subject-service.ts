@@ -1,5 +1,5 @@
 import { dbService } from './database-service'
-import { Subject, Prisma } from '@prisma/client'
+import { Subject } from '@prisma/client'
 
 export interface CreateSubjectData {
   name: string
@@ -148,16 +148,16 @@ export class SubjectService {
     try {
       return await this.prisma.subject.findMany({
         where: {
-          userId: userId,
-          name: {
-            contains: query,
-            mode: 'insensitive'
-          }
+          userId,
+          OR: [
+            { name: { contains: query } },
+            { description: { contains: query } }
+          ]
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { name: 'asc' }
       })
     } catch (error) {
-      console.error('Failed to search subjects:', error)
+      console.error('Error searching subjects:', error)
       throw new Error('Failed to search subjects')
     }
   }

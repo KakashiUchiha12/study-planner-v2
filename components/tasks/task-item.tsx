@@ -25,17 +25,20 @@ import { format, isPast, isToday } from "date-fns"
 interface Task {
   id: string
   title: string
-  description?: string
-  completed: boolean
+  description?: string | null
+  priority: 'low' | 'medium' | 'high'
+  status: 'pending' | 'in_progress' | 'completed'
+  dueDate?: Date | null
+  subjectId?: string | null
+  estimatedTime?: number | null
+  tags?: string
+  progress?: number | null
+  timeSpent?: number | null
+  order?: number
+  category?: string
   createdAt: Date
-  dueDate?: Date
-  priority: "low" | "medium" | "high"
-  category: string
-  estimatedTime?: number
-  tags: string[]
-  subject?: string
-  progress?: number
-  timeSpent?: number
+  updatedAt: Date
+  completedAt?: Date | null
 }
 
 interface TaskItemProps {
@@ -71,63 +74,210 @@ export function TaskItem({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editData, setEditData] = useState({
     title: task.title,
-    description: task.description || "",
+    description: task.description || '',
     priority: task.priority,
-    category: task.category,
-    estimatedTime: task.estimatedTime || 0
+    status: task.status,
+    dueDate: task.dueDate,
+    category: task.category || 'general',
+    estimatedTime: task.estimatedTime || 0,
+    tags: task.tags || '[]'
   })
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high": return "text-red-700 bg-red-100 border-red-200 dark:bg-red-900/30 dark:border-red-800 dark:text-red-300"
-      case "medium": return "text-yellow-700 bg-yellow-100 border-yellow-200 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-300"
-      case "low": return "text-green-700 bg-green-100 border-green-200 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300"
-      default: return "text-gray-700 bg-gray-100 border-gray-200 dark:bg-gray-900/30 dark:border-gray-800 dark:text-gray-300"
-    }
+  const isCompleted = task.status === 'completed'
+
+  const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate)) && !isCompleted
+
+  const handleEdit = () => {
+    setEditData({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      status: task.status,
+      dueDate: task.dueDate,
+      category: task.category || 'general',
+      estimatedTime: task.estimatedTime || 0,
+      tags: task.tags || '[]'
+    })
+    setIsEditing(true)
   }
 
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case "high": return "🔴"
-      case "medium": return "🟡"
-      case "low": return "🟢"
-      default: return "⚪"
-    }
-  }
-
-  const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate)) && !task.completed
-
-  const handleSave = () => {
+  const handleSave = async () => {
     // Clear previous errors
     setEditErrors({})
     
     // Validate required fields
-    const newErrors: Record<string, string> = {}
+    const errors: Record<string, string> = {}
     
     if (!editData.title.trim()) {
-      newErrors.title = "Title is required"
+      errors.title = 'Title is required'
     }
     
-    if (editData.estimatedTime < 0) {
-      newErrors.estimatedTime = "Estimated time cannot be negative"
+    if (editData.estimatedTime && editData.estimatedTime < 0) {
+      errors.estimatedTime = 'Estimated time cannot be negative'
     }
     
-    // If there are errors, don't save
-    if (Object.keys(newErrors).length > 0) {
-      setEditErrors(newErrors)
+    // If there are validation errors, show them and don't save
+    if (Object.keys(errors).length > 0) {
+      setEditErrors(errors)
       return
     }
+    
+    try {
+      await onUpdate(task.id, editData)
+      setIsEditing(false)
+      setEditErrors({})
+    } catch (error) {
+      console.error('Failed to update task:', error)
+    }
+  }
 
-    onUpdate(task.id, {
-      title: editData.title.trim(),
-      description: editData.description.trim() || undefined,
-      priority: editData.priority,
-      category: editData.category.trim() || "General",
-      estimatedTime: editData.estimatedTime || undefined
-    })
-    setIsEditing(false)
-    setEditErrors({})
+  const handleToggleComplete = async () => {
+    try {
+      console.log('🔍 TaskItem: handleToggleComplete called for task:', task.id, task.title)
+      console.log('🔍 TaskItem: Current task status:', task.status, 'completedAt:', task.completedAt)
+      console.log('🔍 TaskItem: onToggle prop exists:', !!onToggle)
+      
+      // Use the onToggle prop that was passed down from TaskManager
+      onToggle(task.id)
+      
+      console.log('🔍 TaskItem: onToggle called successfully')
+    } catch (error) {
+      console.error('❌ TaskItem: Failed to toggle task completion:', error)
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800'
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-800'
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800'
+      default:
+        return 'bg-green-100 text-green-800'
+    }
+  }
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'academic':
+        return 'bg-blue-100 text-blue-800'
+      case 'personal':
+        return 'bg-purple-100 text-purple-800'
+      case 'work':
+        return 'bg-orange-100 text-orange-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'No due date'
+    return format(new Date(date), 'MMM dd, yyyy')
+  }
+
+  const formatTime = (minutes: number | null) => {
+    if (!minutes) return 'No time estimate'
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+  }
+
+  const getProgressPercentage = () => {
+    if (task.progress === null || task.progress === undefined) return 0
+    return Math.round(task.progress)
+  }
+
+  const getTimeSpent = () => {
+    if (task.timeSpent === null || task.timeSpent === undefined) return 0
+    return task.timeSpent
+  }
+
+  const getEstimatedTime = () => {
+    if (task.estimatedTime === null || task.estimatedTime === undefined) return 0
+    return task.estimatedTime
+  }
+
+  const getTags = () => {
+    if (!task.tags) return []
+    try {
+      return JSON.parse(task.tags)
+    } catch {
+      return []
+    }
+  }
+
+  const getSubjectName = () => {
+    return task.subjectId || 'No subject'
+  }
+
+  const getSubjectColor = () => {
+    return task.subjectId ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+  }
+
+  const getSubjectIcon = () => {
+    return task.subjectId ? '📚' : '📝'
+  }
+
+  const getSubjectAbbr = () => {
+    if (!task.subjectId) return 'NS'
+    return task.subjectId.substring(0, 2).toUpperCase()
+  }
+
+  const getSubjectFullName = () => {
+    return task.subjectId || 'No Subject Assigned'
+  }
+
+  const getSubjectProgress = () => {
+    if (task.progress === null || task.progress === undefined) return 0
+    return task.progress
+  }
+
+  const getSubjectStatus = () => {
+    if (task.status === 'completed') return 'Completed'
+    if (task.status === 'in_progress') return 'In Progress'
+    return 'Pending'
+  }
+
+  const getSubjectPriority = () => {
+    switch (task.priority) {
+      case 'high':
+        return 'High Priority'
+      case 'medium':
+        return 'Medium Priority'
+      default:
+        return 'Low Priority'
+    }
+  }
+
+  const getSubjectCategory = () => {
+    return task.category || 'General'
+  }
+
+  const getSubjectTags = () => {
+    return getTags().join(', ') || 'No tags'
+  }
+
+  const getSubjectTimeInfo = () => {
+    const estimated = getEstimatedTime()
+    const spent = getTimeSpent()
+    
+    if (estimated === 0 && spent === 0) return 'No time data'
+    if (estimated === 0) return `Spent: ${formatTime(spent)}`
+    if (spent === 0) return `Estimated: ${formatTime(estimated)}`
+    
+    return `${formatTime(spent)} / ${formatTime(estimated)}`
   }
 
   const handleCancel = () => {
@@ -135,8 +285,11 @@ export function TaskItem({
       title: task.title,
       description: task.description || "",
       priority: task.priority,
-      category: task.category,
-      estimatedTime: task.estimatedTime || 0
+      category: task.category || 'Study',
+      estimatedTime: task.estimatedTime || 0,
+      status: task.status,
+      dueDate: task.dueDate,
+      tags: task.tags || ''
     })
     setEditErrors({})
     setIsEditing(false)
@@ -157,17 +310,20 @@ export function TaskItem({
         className={`
           transition-all duration-200 cursor-grab active:cursor-grabbing
           ${isDragging ? 'opacity-60 scale-98 shadow-lg border-2 border-primary' : 'hover:shadow-md'}
-          ${dragOverIndex === index ? 'border-primary border-2 bg-primary/5' : ''}
-          ${task.completed ? 'bg-muted/50' : 'bg-card'}
+          ${dragOverIndex === index ? 'border-primary border-2 bg-primary/5' : 'bg-card'}
+          ${isCompleted ? 'bg-muted/50' : ''}
           ${isOverdue ? 'border-l-4 border-l-red-500' : ''}
           hover:scale-[1.01] hover:shadow-lg
         `}
-        draggable={!isEditing}
+        draggable={!isEditing && !isCompleted}
         onDragStart={(e) => onDragStart(e, index)}
         onDragEnd={onDragEnd}
         onDragOver={(e) => {
           e.preventDefault()
-          e.dataTransfer.dropEffect = "move"
+          // Only set dropEffect if dataTransfer exists (for test environment compatibility)
+          if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = "move"
+          }
           onDragOver(e)
         }}
         onDrop={(e) => onDrop(e, index)}
@@ -183,12 +339,12 @@ export function TaskItem({
               
               {/* Complete Toggle */}
               <button
-                onClick={() => onToggle(task.id)}
+                onClick={handleToggleComplete}
                 className="flex-shrink-0 transition-colors"
-                aria-label={task.completed ? "Mark task as incomplete" : "Mark task as complete"}
-                title={task.completed ? "Mark as incomplete" : "Mark as complete"}
+                aria-label={isCompleted ? "Mark task as incomplete" : "Mark task as complete"}
+                title={isCompleted ? "Mark as incomplete" : "Mark as complete"}
               >
-                {task.completed ? (
+                {isCompleted ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
@@ -227,7 +383,7 @@ export function TaskItem({
                         setEditData(prev => ({ ...prev, priority: value }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Priority">
                         <SelectValue placeholder={editData.priority} />
                       </SelectTrigger>
                       <SelectContent>
@@ -237,8 +393,24 @@ export function TaskItem({
                       </SelectContent>
                     </Select>
                     
+                    <Select
+                      value={editData.status}
+                      onValueChange={(value: "pending" | "in_progress" | "completed") => 
+                        setEditData(prev => ({ ...prev, status: value }))
+                      }
+                    >
+                      <SelectTrigger aria-label="Status">
+                        <SelectValue placeholder={editData.status} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">⏳ Pending</SelectItem>
+                        <SelectItem value="in_progress">🔄 In Progress</SelectItem>
+                        <SelectItem value="completed">✅ Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
                     <Input
-                      value={editData.category}
+                      value={editData.category || ''}
                       onChange={(e) => setEditData(prev => ({ ...prev, category: e.target.value }))}
                       placeholder="Category"
                     />
@@ -275,31 +447,21 @@ export function TaskItem({
                 /* View Mode */
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className={`font-medium ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                    <h3 className={`font-medium ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
                       {task.title}
                     </h3>
                     
                     <div className="flex items-center space-x-1">
                       {/* Priority Badge */}
                       <Badge variant="outline" className={`text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                        {getPriorityIcon(task.priority)} {task.priority}
+                        {getSubjectPriority()}
                       </Badge>
                       
                       {/* Action Buttons */}
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          setEditData({
-                            title: task.title,
-                            description: task.description || "",
-                            priority: task.priority,
-                            category: task.category,
-                            estimatedTime: task.estimatedTime || 0
-                          })
-                          setEditErrors({})
-                          setIsEditing(true)
-                        }}
+                        onClick={handleEdit}
                         className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/20 transition-colors"
                         aria-label="Edit task"
                         title="Edit task"
@@ -321,32 +483,30 @@ export function TaskItem({
                   </div>
                   
                   {task.description && (
-                    <p className={`text-sm ${task.completed ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>
+                    <p className={`text-sm ${isCompleted ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>
                       {task.description}
                     </p>
                   )}
                   
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <div className="flex items-center space-x-1 px-2 py-1 bg-muted/30 rounded-full">
-                    {task.completed ? (
+                    {isCompleted ? (
                       <CheckCircle2 className="h-3 w-3 text-green-600" />
                     ) : (
                       <Circle className="h-3 w-3 text-muted-foreground" />
                     )}
-                    <span className={task.completed ? 'text-green-700 dark:text-green-300' : ''}>
-                      {task.completed ? 'Completed' : 'Pending'}
+                    <span className={isCompleted ? 'text-green-700 dark:text-green-300' : ''}>
+                      {getSubjectStatus()}
                     </span>
                   </div>
-                    {task.category && (
-                      <Badge variant="outline" className="text-xs">
-                        {task.category}
-                      </Badge>
-                    )}
+                    <Badge variant="outline" className={`text-xs ${getCategoryColor(task.category || 'general')}`}>
+                      {getSubjectCategory()}
+                    </Badge>
                     
                     {task.dueDate && (
                       <div className={`flex items-center space-x-1 ${isOverdue ? 'text-red-600' : ''}`}>
                         <Calendar className="h-3 w-3" />
-                        <span>{format(new Date(task.dueDate), 'MMM dd')}</span>
+                        <span>{formatDate(task.dueDate)}</span>
                         {isOverdue && <span className="font-medium">(Overdue)</span>}
                       </div>
                     )}
@@ -354,14 +514,14 @@ export function TaskItem({
                     {task.estimatedTime && task.estimatedTime > 0 && (
                       <div className="flex items-center space-x-1">
                         <Clock className="h-3 w-3" />
-                        <span>{task.estimatedTime}min</span>
+                        <span>{formatTime(task.estimatedTime)}</span>
                       </div>
                     )}
                     
-                    {task.progress !== undefined && task.progress > 0 && (
+                    {task.progress !== null && task.progress !== undefined && task.progress > 0 && (
                       <div className="flex items-center space-x-1">
                         <Flag className="h-3 w-3" />
-                        <span>{task.progress}% complete</span>
+                        <span>{getProgressPercentage()}% complete</span>
                       </div>
                     )}
                   </div>

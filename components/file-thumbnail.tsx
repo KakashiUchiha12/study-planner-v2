@@ -7,11 +7,16 @@ import { FileText, Image as ImageIcon, FileSpreadsheet, FileText as WordIcon } f
 let pdfjsLib: any = null
 
 if (typeof window !== 'undefined') {
-  import('pdfjs-dist/legacy/build/pdf.js').then((lib) => {
-    pdfjsLib = lib
-    // Set the worker source for PDF.js
-    lib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`
-  })
+  // Try to load PDF.js from CDN
+  try {
+    // Check if PDF.js is available globally
+    if ((window as any).pdfjsLib) {
+      pdfjsLib = (window as any).pdfjsLib;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+    }
+  } catch (error) {
+    console.log('PDF.js not available, will use fallback thumbnails');
+  }
 }
 
 interface FileThumbnailProps {

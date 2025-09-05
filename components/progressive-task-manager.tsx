@@ -4,21 +4,26 @@ import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, Circle, Clock, Calendar as CalendarIcon, Tag, Filter, SortAsc, SortDesc, MoreHorizontal } from "lucide-react"
-import { format, isToday, isTomorrow, isPast, addDays } from "date-fns"
+import { CheckCircle2, Circle, Filter, SortAsc, SortDesc } from "lucide-react"
+import { format, isToday, isTomorrow, isPast } from "date-fns"
 
 interface Task {
   id: string
   title: string
-  description?: string
-  completed: boolean
-  priority: "low" | "medium" | "high"
+  description?: string | null
+  priority: 'low' | 'medium' | 'high'
+  status: 'pending' | 'in_progress' | 'completed'
+  dueDate?: Date | null
+  subjectId?: string | null
+  estimatedTime?: number | null
+  tags?: string
+  progress?: number | null
+  timeSpent?: number | null
+  order?: number
   category?: string
-  dueDate?: Date
-  estimatedTime?: number
   createdAt: Date
-  tags: string[]
+  updatedAt: Date
+  completedAt?: Date | null
 }
 
 interface ProgressiveTaskManagerProps {
@@ -52,10 +57,10 @@ export function ProgressiveTaskManager({
     // Apply status filter
     switch (filter) {
       case "pending":
-        filtered = filtered.filter(task => !task.completed)
+        filtered = filtered.filter(task => task.status === 'pending')
         break
       case "completed":
-        filtered = filtered.filter(task => task.completed)
+        filtered = filtered.filter(task => task.status === 'completed')
         break
       case "overdue":
         filtered = filtered.filter(task => isTaskOverdue(task))
@@ -87,7 +92,7 @@ export function ProgressiveTaskManager({
   }, [tasks, filter, sort, sortDirection, searchQuery])
 
   const isTaskOverdue = (task: Task) => {
-    if (!task.dueDate || task.completed) return false
+    if (!task.dueDate || task.status === 'completed') return false
     return isPast(task.dueDate) && !isToday(task.dueDate)
   }
 
@@ -185,7 +190,7 @@ export function ProgressiveTaskManager({
             <div
               key={task.id}
               className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                task.completed 
+                task.status === 'completed'
                   ? "bg-muted/30 border-muted" 
                   : isTaskOverdue(task)
                   ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
@@ -195,11 +200,11 @@ export function ProgressiveTaskManager({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onTaskUpdate(task.id, { completed: !task.completed })}
+                onClick={() => onTaskUpdate(task.id, { status: task.status === 'pending' ? 'in_progress' : 'completed' })}
                 className="p-0 h-auto"
-                aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+                aria-label={task.status === 'pending' ? "Mark in progress" : "Mark complete"}
               >
-                {task.completed ? (
+                {task.status === 'completed' ? (
                   <CheckCircle2 className="h-5 w-5 text-success" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground" />
@@ -208,21 +213,21 @@ export function ProgressiveTaskManager({
               
               <div className="flex-1 min-w-0">
                 <p className={`font-medium truncate ${
-                  task.completed ? "line-through text-muted-foreground" : "text-foreground"
+                  task.status === 'completed' ? "line-through text-muted-foreground" : "text-foreground"
                 }`}>
                   {task.title}
                 </p>
                 
                 {task.dueDate && (
                   <p className={`text-sm mt-1 ${
-                    isTaskOverdue(task) && !task.completed ? "text-red-600 font-medium" : "text-muted-foreground"
+                    isTaskOverdue(task) && task.status !== 'completed' ? "text-red-600 font-medium" : "text-muted-foreground"
                   }`}>
                     {formatDueDate(task.dueDate)}
                   </p>
                 )}
               </div>
               
-              {task.priority === 'high' && !task.completed && (
+              {task.priority === 'high' && task.status !== 'completed' && (
                 <div className="w-2 h-2 bg-red-600 rounded-full" aria-label="High priority" />
               )}
             </div>

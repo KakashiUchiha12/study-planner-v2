@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useTasks } from '@/hooks/useTasks'
+import { Task } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,33 +12,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, Edit, Trash2, Search, Calendar, Clock, CheckCircle, Circle, AlertCircle, Filter, SortAsc, Flag } from 'lucide-react'
-import { useTasks } from '@/hooks/useTasks'
 import { isPast, isToday } from "date-fns"
 import { TaskItem } from "./task-item"
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  completed: boolean
-  createdAt: Date
-  dueDate?: Date
-  priority: "low" | "medium" | "high"
-  category: string
-  estimatedTime?: number
-  tags: string[]
-  subject?: string
-  progress?: number
-  timeSpent?: number
-}
 
 interface TaskManagerProps {
   tasks: Task[]
   onTasksChange: (tasks: Task[]) => void
+  onTaskCreate?: (task: Partial<Task>) => void
+  onTaskUpdate?: (taskId: string, updates: Partial<Task>) => void
+  onTaskDelete?: (taskId: string) => void
+  onTaskReorder?: (taskIds: string[]) => void
   onOpenCreateDialog?: () => void
 }
 
-export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskManagerProps) {
+export function TaskManager({ 
+  tasks, 
+  onTasksChange, 
+  onTaskCreate, 
+  onTaskUpdate, 
+  onTaskDelete,
+  onTaskReorder,
+  onOpenCreateDialog
+}: TaskManagerProps) {
+  const { reorderTasks } = useTasks()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState("all") // all, pending, completed, overdue
   const [sortBy, setSortBy] = useState("dueDate") // dueDate, priority, createdAt, title
@@ -52,18 +50,18 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
       filtered = filtered.filter(task => 
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        task.category.toLowerCase().includes(searchQuery.toLowerCase())
+        task.category?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
     // Apply status filter
     if (filterStatus === "pending") {
-      filtered = filtered.filter(task => !task.completed)
+      filtered = filtered.filter(task => task.status === 'pending')
     } else if (filterStatus === "completed") {
-      filtered = filtered.filter(task => task.completed)
+      filtered = filtered.filter(task => task.status === 'completed')
     } else if (filterStatus === "overdue") {
       filtered = filtered.filter(task => 
-        !task.completed && task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate))
+        task.status === 'pending' && task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate))
       )
     }
 
@@ -78,7 +76,7 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
         
         case "priority":
           const priorityOrder = { high: 3, medium: 2, low: 1 }
-          return priorityOrder[b.priority] - priorityOrder[a.priority]
+          return priorityOrder[b.priority as keyof typeof priorityOrder] - priorityOrder[a.priority as keyof typeof priorityOrder]
         
         case "createdAt":
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -95,11 +93,44 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
   }, [tasks, searchQuery, filterStatus, sortBy])
 
   const handleToggleTask = useMemo(() => {
-    return (taskId: string) => {
-      const updatedTasks = tasks.map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-      onTasksChange(updatedTasks)
+    return async (taskId: string) => {
+      try {
+        console.log('🔍 TaskManager: handleToggleTask called for taskId:', taskId)
+        
+        // Find the task to get current status
+        const task = tasks.find(t => t.id === taskId)
+        if (!task) {
+          console.log('❌ TaskManager: Task not found for id:', taskId)
+          return
+        }
+        
+        console.log('🔍 TaskManager: Found task:', task.title, 'Current status:', task.status)
+        
+        // Toggle the task status and completedAt
+        const isCompleted = task.status === 'completed'
+        const newStatus = isCompleted ? 'pending' : 'completed'
+        const newCompletedAt = isCompleted ? null : new Date()
+        
+        console.log('🔍 TaskManager: Toggling from', task.status, 'to', newStatus, 'completedAt:', newCompletedAt)
+        
+        // Update the task in the local state first (optimistic update)
+        const updatedTasks = tasks.map(t =>
+          t.id === taskId ? { 
+            ...t, 
+            status: newStatus as 'pending' | 'in_progress' | 'completed',
+            completedAt: newCompletedAt
+          } : t
+        )
+        
+        console.log('🔍 TaskManager: Calling onTasksChange with', updatedTasks.length, 'tasks')
+        
+        // Call onTasksChange to update parent state and database
+        await onTasksChange(updatedTasks)
+        
+        console.log('✅ TaskManager: Task toggle completed successfully')
+      } catch (error) {
+        console.error('❌ TaskManager: Failed to toggle task:', error)
+      }
     }
   }, [tasks, onTasksChange])
 
@@ -154,15 +185,26 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
     const [removed] = result.splice(draggedIndex, 1)
     result.splice(dropIndex, 0, removed)
     
+    // Update the order property for each task
+    const reorderedTasks = result.map((task, index) => ({
+      ...task,
+      order: index
+    }))
+    
     console.log('🔍 Tasks reordered:', {
-      originalOrder: tasks.map(t => ({ id: t.id, title: t.title })),
-      newOrder: result.map(t => ({ id: t.id, title: t.title })),
+      originalOrder: tasks.map(t => ({ id: t.id, title: t.title, order: t.order })),
+      newOrder: reorderedTasks.map(t => ({ id: t.id, title: t.title, order: t.order })),
       draggedTask: removed.title,
       dropIndex: dropIndex
     })
     
     console.log('🔍 Calling onTasksChange with reordered tasks')
-    onTasksChange(result)
+    console.log('🔍 onTasksChange function exists:', !!onTasksChange)
+    console.log('🔍 onTasksChange type:', typeof onTasksChange)
+    
+    // Call the callback to notify parent component
+    onTasksChange(reorderedTasks)
+    
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
@@ -184,9 +226,12 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
   // Task statistics
   const taskStats = {
     total: tasks.length,
-    completed: tasks.filter(t => t.completed).length,
-    pending: tasks.filter(t => !t.completed).length,
-    overdue: tasks.filter(t => !t.completed && t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))).length
+    completed: tasks.filter(t => t.status === 'completed').length,
+    pending: tasks.filter(t => t.status === 'pending').length,
+    overdue: tasks.filter(t => t.status === 'pending' && t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))).length,
+    highPriority: tasks.filter(t => t.priority === 'high').length,
+    mediumPriority: tasks.filter(t => t.priority === 'medium').length,
+    lowPriority: tasks.filter(t => t.priority === 'low').length
   }
 
   return (
@@ -347,7 +392,11 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
                             onDragOver={handleDragOver}
                           >
                            <TaskItem
-                             task={task}
+                             task={{
+                               ...task,
+                               priority: task.priority as 'low' | 'medium' | 'high',
+                               status: task.status as 'pending' | 'in_progress' | 'completed'
+                             }}
                              index={actualIndex}
                              onToggle={handleToggleTask}
                              onUpdate={handleUpdateTask}
@@ -356,7 +405,7 @@ export function TaskManager({ tasks, onTasksChange, onOpenCreateDialog }: TaskMa
                              onDragEnd={handleDragEnd}
                              onDragOver={handleDragOver}
                              onDrop={handleDrop}
-                             onDragEnter={handleDragEnter}
+                             onDragEnter={() => handleDragEnter(actualIndex)}
                              isDragging={draggedIndex === actualIndex}
                              dragOverIndex={dragOverIndex === actualIndex ? actualIndex : null}
                            />

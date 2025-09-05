@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { documentService } from '@/lib/database'
-import fs from 'fs'
-import path from 'path'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user || !(session.user as any).id) {
@@ -13,36 +17,64 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const userId = (session.user as any).id
-    const { id } = await params
+    const documentId = (await params).id
 
-    // Get the document to verify ownership
-    const document = await documentService.getDocumentById(id)
-    if (!document || document.userId !== userId) {
+    // Get document details
+    const document = await documentService.getDocumentById(documentId)
+    if (!document) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
+    // Check if user owns this document
+    if (document.userId !== userId) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Get thumbnail path
-    const thumbnailPath = await documentService.getDocumentThumbnailPath(id)
-    if (!thumbnailPath) {
+    // Check if thumbnail exists - try both the standard and high-quality versions
+    let thumbnailPath = join(process.cwd(), 'uploads', 'thumbnails', `${documentId}-thumb.png`)
+    
+    // If standard thumbnail doesn't exist, try high-quality version
+    if (!existsSync(thumbnailPath)) {
+      thumbnailPath = join(process.cwd(), 'uploads', 'thumbnails', `${documentId}-thumb-hq.png`)
+    }
+    
+    // If still no thumbnail, try to generate one
+    if (!existsSync(thumbnailPath)) {
+      console.log(`Thumbnail not found for ${documentId}, attempting to generate...`)
+      
+      try {
+        // Get the document file path to generate thumbnail
+        const filePath = await documentService.getDocumentFilePath(documentId)
+        if (filePath) {
+          await documentService.generateThumbnail(documentId, filePath, document.mimeType)
+          
+          // Check again for the generated thumbnail
+          thumbnailPath = join(process.cwd(), 'uploads', 'thumbnails', `${documentId}-thumb.png`)
+          if (!existsSync(thumbnailPath)) {
+            thumbnailPath = join(process.cwd(), 'uploads', 'thumbnails', `${documentId}-thumb-hq.png`)
+          }
+        }
+      } catch (genError) {
+        console.error('Failed to generate thumbnail:', genError)
+      }
+    }
+
+    if (!existsSync(thumbnailPath)) {
       return NextResponse.json({ error: 'Thumbnail not found' }, { status: 404 })
     }
 
-    // Read and serve the thumbnail file
-    const fullPath = path.join(process.cwd(), thumbnailPath)
+    // Read and serve the thumbnail
+    const thumbnailBuffer = await readFile(thumbnailPath)
     
-    if (!fs.existsSync(fullPath)) {
-      return NextResponse.json({ error: 'Thumbnail file not found' }, { status: 404 })
-    }
-
-    const thumbnailBuffer = fs.readFileSync(fullPath)
-    return new NextResponse(thumbnailBuffer, {
+    return new NextResponse(new Uint8Array(thumbnailBuffer), {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
       },
     })
+
   } catch (error) {
-    console.error('Error serving thumbnail:', error)
+    console.error('Error serving document thumbnail:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

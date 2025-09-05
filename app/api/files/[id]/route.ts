@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { fileService } from '@/lib/database/file-service'
 import { readFile } from 'fs/promises'
-import path from 'path'
+
 
 export async function PUT(
   request: NextRequest,
@@ -126,7 +126,7 @@ export async function GET(
     headers.set('Content-Disposition', `inline; filename="${file.originalName}"`)
     headers.set('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
     
-    return new NextResponse(fileBuffer as any, {
+            return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers
     })

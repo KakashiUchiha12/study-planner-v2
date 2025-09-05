@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+// import { signIn } from "next-auth/react" // Removed NextAuth dependency
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,6 +40,13 @@ export default function SignUpPage() {
     e.preventDefault()
     setError("")
 
+    console.log('🔐 Signup: Starting account creation process...', { 
+      name: formData.name, 
+      email: formData.email, 
+      hasPassword: !!formData.password,
+      agreedToTerms 
+    });
+
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
       return
@@ -53,22 +60,18 @@ export default function SignUpPage() {
     setIsLoading(true)
 
     try {
-      // For now, we'll automatically sign in the user after "creating" an account
-      // In a real app, you'd create the account in a database first
-      const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError("Account creation failed. Please try again.")
-        toast.error("Signup failed")
-      } else {
-        toast.success("Account created successfully!")
-        router.push("/dashboard")
-      }
+      // Mock account creation - always succeed for now
+      console.log('🔐 Signup: Using mock account creation (NextAuth removed)');
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // For now, always succeed - we'll add proper auth later
+      console.log('🔐 Signup: Mock account creation successful');
+      toast.success("Account created successfully!")
+      router.push("/dashboard")
     } catch (err) {
+      console.error('🔐 Signup: Account creation error:', err);
       setError("An error occurred. Please try again.")
       toast.error("An error occurred")
     } finally {

@@ -16,60 +16,45 @@ export async function GET(request: NextRequest) {
 
     const userId = (session.user as any).id
 
-    // For mock users, return default settings without database interaction
-    if (userId === 'mock-user-id') {
-      const defaultSettings = {
-        id: 'mock-settings-id',
-        userId: 'mock-user-id',
-        taskReminders: true,
-        emailNotifications: false,
-        pushNotifications: true,
-        reminderTime: "09:00",
-        studySessionAlerts: true,
-        defaultStudyGoal: 240,
-        preferredStudyTime: "18:00",
-        breakReminders: true,
-        breakDuration: 15,
-        theme: "system",
-        dashboardLayout: "default",
-        showProgressBars: true,
-        compactMode: false,
-        autoBackup: true,
-        dataRetentionDays: 365,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      return NextResponse.json(defaultSettings)
+    // Check if user exists in database
+    const user = await dbService.getPrisma().user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
     }
 
-    // Get user settings from database for real users
+    // Get user settings from database
     const userSettings = await dbService.getPrisma().userSettings.findUnique({
       where: { userId }
     })
 
     if (!userSettings) {
-      // Return default settings without creating in database
-      const defaultSettings = {
-        id: 'default-settings-id',
-        userId,
-        taskReminders: true,
-        emailNotifications: false,
-        pushNotifications: true,
-        reminderTime: "09:00",
-        studySessionAlerts: true,
-        defaultStudyGoal: 240,
-        preferredStudyTime: "18:00",
-        breakReminders: true,
-        breakDuration: 15,
-        theme: "system",
-        dashboardLayout: "default",
-        showProgressBars: true,
-        compactMode: false,
-        autoBackup: true,
-        dataRetentionDays: 365,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
+      // Create default settings for the user
+      const defaultSettings = await dbService.getPrisma().userSettings.create({
+        data: {
+          userId,
+          taskReminders: true,
+          emailNotifications: false,
+          pushNotifications: true,
+          reminderTime: "09:00",
+          studySessionAlerts: true,
+          defaultStudyGoal: 240,
+          preferredStudyTime: "18:00",
+          breakReminders: true,
+          breakDuration: 15,
+          theme: "system",
+          dashboardLayout: "default",
+          showProgressBars: true,
+          compactMode: false,
+          autoBackup: true,
+          dataRetentionDays: 365
+        }
+      })
       return NextResponse.json(defaultSettings)
     }
 
@@ -97,30 +82,16 @@ export async function PUT(request: NextRequest) {
     const userId = (session.user as any).id
     const body = await request.json()
 
-    // For mock users, return updated settings without database interaction
-    if (userId === 'mock-user-id') {
-      const updatedSettings = {
-        id: 'mock-settings-id',
-        userId: 'mock-user-id',
-        taskReminders: body.taskReminders ?? true,
-        emailNotifications: body.emailNotifications ?? false,
-        pushNotifications: body.pushNotifications ?? true,
-        reminderTime: body.reminderTime ?? "09:00",
-        studySessionAlerts: body.studySessionAlerts ?? true,
-        defaultStudyGoal: body.defaultStudyGoal ?? 240,
-        preferredStudyTime: body.preferredStudyTime ?? "18:00",
-        breakReminders: body.breakReminders ?? true,
-        breakDuration: body.breakDuration ?? 15,
-        theme: body.theme ?? "system",
-        dashboardLayout: body.dashboardLayout ?? "default",
-        showProgressBars: body.showProgressBars ?? true,
-        compactMode: body.compactMode ?? false,
-        autoBackup: body.autoBackup ?? true,
-        dataRetentionDays: body.dataRetentionDays ?? 365,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      return NextResponse.json(updatedSettings)
+    // Check if user exists in database
+    const user = await dbService.getPrisma().user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
     }
 
     // Update or create user settings for real users

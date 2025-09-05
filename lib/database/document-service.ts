@@ -255,12 +255,15 @@ export class DocumentService {
 
       if (thumbnailPath) {
         console.log(`Thumbnail generated successfully: ${thumbnailPath}`)
-        // Update the document with thumbnail path
+        // Always store the API URL for thumbnails, not the file path
+        const thumbnailUrl = `/api/documents/${documentId}/thumbnail`
         await (prisma as any).document.update({
           where: { id: documentId },
-          data: { thumbnailPath: thumbnailPath.replace(process.cwd(), '').replace(/\\/g, '/') }
+          data: { 
+            thumbnailPath: thumbnailUrl
+          }
         })
-        console.log('Document updated with thumbnail path')
+        console.log('Document updated with thumbnail URL:', thumbnailUrl)
         return thumbnailPath
       }
 
@@ -314,8 +317,8 @@ export class DocumentService {
         
         // Save as PNG
         const buffer = canvasInstance.toBuffer('image/png')
-        const fs = await import('fs')
-        await fs.promises.writeFile(thumbnailPath, buffer)
+        const fsModule = await import('fs')
+        await fsModule.promises.writeFile(thumbnailPath, buffer)
         
         return thumbnailPath
       } catch (canvasError) {
@@ -548,8 +551,9 @@ export class DocumentService {
            
            if (document && document.filePath) {
              const fullPath = join(process.cwd(), document.filePath)
-             if (fs.existsSync(fullPath)) {
-               const content = fs.readFileSync(fullPath, 'utf8')
+             const fsModule = await import('fs')
+             if (fsModule.existsSync(fullPath)) {
+               const content = fsModule.readFileSync(fullPath, 'utf8')
                const lines = content.split('\n').slice(0, 8) // First 8 lines
               
               // Add document icon
@@ -580,8 +584,7 @@ export class DocumentService {
               
               // Save as PNG
               const buffer = canvasInstance.toBuffer('image/png')
-              const fs = await import('fs')
-        await fs.promises.writeFile(thumbnailPath, buffer)
+              await fsModule.promises.writeFile(thumbnailPath, buffer)
               return
             }
           }
@@ -705,13 +708,13 @@ export class DocumentService {
       console.log(`[PDF] High-quality thumbnail saved to disk: ${thumbnailPath}`)
       
       // Update database with new thumbnail path
-      const relativePath = thumbnailPath.replace(process.cwd(), '').replace(/\\/g, '/')
+      const thumbnailUrl = `/api/documents/${documentId}/thumbnail`
       await (prisma as any).document.update({
         where: { id: documentId },
-        data: { thumbnailPath: relativePath }
+        data: { thumbnailPath: thumbnailUrl }
       })
       
-      console.log(`[PDF] Database updated with new thumbnail path: ${relativePath}`)
+      console.log(`[PDF] Database updated with new thumbnail URL: ${thumbnailUrl}`)
       
       // Clean up old low-quality thumbnail if it exists
       const oldThumbnailPath = join(this.thumbnailsDir, `${documentId}-thumb.png`)
@@ -733,19 +736,25 @@ export class DocumentService {
   }
 
   /**
-   * Get document file path for download/viewing
+   * Get document file path
    */
   async getDocumentFilePath(documentId: string): Promise<string | null> {
     try {
-      const document = await prisma.document.findUnique({
+      const document = await (prisma as any).document.findUnique({
         where: { id: documentId }
       })
 
-      if (!document) {
-        return null
+      if (document && document.filePath) {
+        const fullPath = join(process.cwd(), document.filePath)
+        const fsModule = await import('fs')
+        if (!fsModule.existsSync(fullPath)) {
+          console.warn('File not found on disk:', fullPath)
+          return null
+        }
+        return fullPath
       }
 
-      return join(process.cwd(), document.filePath)
+      return null
     } catch (error) {
       console.error('Error getting document file path:', error)
       return null
@@ -757,7 +766,7 @@ export class DocumentService {
    */
   async getDocumentThumbnailPath(documentId: string): Promise<string | null> {
     try {
-      const document = await prisma.document.findUnique({
+      const document = await (prisma as any).document.findUnique({
         where: { id: documentId }
       })
 
@@ -777,7 +786,7 @@ export class DocumentService {
    */
   async searchDocuments(userId: string, query: string): Promise<Document[]> {
     try {
-      return await prisma.document.findMany({
+      return await (prisma as any).document.findMany({
         where: {
           userId,
           OR: [
@@ -802,7 +811,7 @@ export class DocumentService {
    */
   async getDocumentsByType(userId: string, type: string): Promise<Document[]> {
     try {
-      return await prisma.document.findMany({
+      return await (prisma as any).document.findMany({
         where: { userId, type },
         orderBy: [
           { isPinned: 'desc' },
@@ -821,7 +830,7 @@ export class DocumentService {
    */
   async getPinnedDocuments(userId: string): Promise<Document[]> {
     try {
-      return await prisma.document.findMany({
+      return await (prisma as any).document.findMany({
         where: { userId, isPinned: true },
         orderBy: { order: 'asc' }
       })

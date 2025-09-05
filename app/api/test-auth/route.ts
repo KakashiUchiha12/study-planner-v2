@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
     try {
       const session = await getServerSession(authOptions)
       console.log('Session result:', session)
-      console.log('User ID from session:', session?.user?.id)
-      
-      if (session?.user?.id) {
+      console.log('User ID from session:', (session?.user as any)?.id)
+    
+      if (session?.user && (session.user as any)?.id) {
         return NextResponse.json({
           success: true,
           message: 'Authentication working',
-          userId: session.user.id,
+          userId: (session.user as any).id,
           user: session.user
         })
       } else {

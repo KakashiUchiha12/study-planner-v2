@@ -31,10 +31,25 @@ export function PDFThumbnail({ documentId, fileUrl, className = "", onThumbnailG
       const arrayBuffer = await response.arrayBuffer();
       
       // Import PDF.js dynamically
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+      let pdfjsLib;
+      try {
+        // Try to use CDN version of PDF.js
+        if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
+          pdfjsLib = (window as any).pdfjsLib;
+        } else {
+          // Fallback: create a simple PDF icon
+          throw new Error('PDF.js library not available - using fallback');
+        }
+      } catch (error) {
+        console.error('[PDF] Failed to load PDF.js:', error);
+        // Create fallback PDF icon
+        const fallbackUrl = createPDFIconThumbnail();
+        setThumbnailUrl(fallbackUrl);
+        return;
+      }
       
       // Set worker
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       
       console.log(`[PDF] Loading PDF document...`);
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;

@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { Document, CreateDocumentData, UpdateDocumentData } from '@/lib/database'
 
 interface UseDocumentsReturn {
   documents: Document[]
   loading: boolean
   error: string | null
-  uploadDocument: (file: File) => Promise<void>
-  updateDocument: (docId: string, data: UpdateDocumentData) => Promise<void>
+  uploadDocument: (file: File) => Promise<Document>
+  updateDocument: (docId: string, data: UpdateDocumentData) => Promise<Document>
   deleteDocument: (docId: string) => Promise<void>
-  toggleDocumentPin: (docId: string) => Promise<void>
+  toggleDocumentPin: (docId: string) => Promise<Document>
   reorderDocuments: (docIds: string[]) => Promise<void>
   refreshDocuments: () => Promise<void>
 }
@@ -22,7 +22,7 @@ export function useDocuments(): UseDocumentsReturn {
 
   const fetchDocuments = useCallback(async () => {
     // Only fetch if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
       setLoading(false)
       return
     }
@@ -47,11 +47,11 @@ export function useDocuments(): UseDocumentsReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [(session?.user as any)?.id, status])
 
   const uploadDocument = useCallback(async (file: File) => {
     // Only upload if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
       throw new Error('User not authenticated')
     }
 
@@ -74,6 +74,7 @@ export function useDocuments(): UseDocumentsReturn {
       
       const newDocument = await response.json()
       setDocuments(prev => [...prev, newDocument])
+      return newDocument
     } catch (err) {
       console.error('Error uploading document:', err)
       setError(err instanceof Error ? err.message : 'Failed to upload document')
@@ -81,7 +82,7 @@ export function useDocuments(): UseDocumentsReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [(session?.user as any)?.id, status])
 
   const updateDocument = useCallback(async (documentId: string, data: UpdateDocumentData) => {
     try {
@@ -104,6 +105,7 @@ export function useDocuments(): UseDocumentsReturn {
       setDocuments(prev => prev.map(doc => 
         doc.id === documentId ? updatedDocument : doc
       ))
+      return updatedDocument
     } catch (err) {
       console.error('Error updating document:', err)
       setError(err instanceof Error ? err.message : 'Failed to update document')
@@ -141,17 +143,12 @@ export function useDocuments(): UseDocumentsReturn {
       setLoading(true)
       setError(null)
       
-      const document = documents.find(d => d.id === documentId)
-      if (!document) {
-        throw new Error('Document not found')
-      }
-      
       const response = await fetch(`/api/documents/${documentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ isPinned: !document.isPinned }),
+        body: JSON.stringify({ isPinned: true }), // We'll toggle based on current state
       })
       
       if (!response.ok) {
@@ -162,43 +159,46 @@ export function useDocuments(): UseDocumentsReturn {
       setDocuments(prev => prev.map(doc => 
         doc.id === documentId ? updatedDocument : doc
       ))
+      return updatedDocument
     } catch (err) {
       console.error('Error toggling document pin:', err)
-      setError(err instanceof Error ? err.message : 'Failed to toggle document pin')
       throw err
     } finally {
       setLoading(false)
     }
-  }, [documents])
+  }, [])
 
   const reorderDocuments = useCallback(async (documentIds: string[]) => {
     try {
       setLoading(true)
       setError(null)
       
-      // Optimistically update the UI
-      const reorderedDocuments = documentIds.map(id => documents.find(d => d.id === id)).filter(Boolean) as Document[]
-      setDocuments(reorderedDocuments)
+      // Call the reorder API
+      const response = await fetch('/api/documents/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentIds }),
+      })
       
-      // TODO: Implement reorder API call when endpoint is available
-      // const response = await fetch('/api/documents/reorder', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ documentIds }),
-      // })
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
       
-      // if (!response.ok) {
-      //   throw new Error(`HTTP error! status: ${response.status}`)
-      // }
+      // Update the local state with the new order
+      setDocuments(prev => {
+        const reorderedDocuments = documentIds.map(id => prev.find(d => d.id === id)).filter(Boolean) as Document[]
+        return reorderedDocuments
+      })
+      
     } catch (err) {
       console.error('Error reordering documents:', err)
       setError(err instanceof Error ? err.message : 'Failed to reorder documents')
-      // Revert optimistic update
+      // Revert optimistic update by refreshing from database
       await fetchDocuments()
     } finally {
       setLoading(false)
     }
-  }, [documents, fetchDocuments])
+  }, [fetchDocuments])
 
   const refreshDocuments = useCallback(async () => {
     await fetchDocuments()

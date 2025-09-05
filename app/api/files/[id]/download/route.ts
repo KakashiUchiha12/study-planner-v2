@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { fileService } from '@/lib/database/file-service'
 import { readFile } from 'fs/promises'
-import path from 'path'
+
 
 export async function GET(
   request: NextRequest,
@@ -39,7 +39,7 @@ export async function GET(
       await fileService.incrementDownloadCount(fileId)
 
       // Return file with appropriate headers
-      const response = new NextResponse(fileBuffer as any)
+      const response = new NextResponse(new Uint8Array(fileBuffer))
       response.headers.set('Content-Type', file.mimeType)
       response.headers.set('Content-Disposition', `attachment; filename="${file.originalName}"`)
       response.headers.set('Content-Length', file.fileSize.toString())

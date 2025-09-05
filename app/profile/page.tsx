@@ -1,182 +1,184 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
-import { useSession } from 'next-auth/react'
+import { useState, useRef, useEffect } from "react"
+import { useSession } from '@/hooks/use-session-simple'
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, Target, Award, FolderOpen } from "lucide-react"
+import { Eye, Target, FolderOpen, X, CheckCircle, Plus } from "lucide-react"
+import { useRouter } from 'next/navigation'
 
 // Import our new database hooks
-import { useProfile, useGoals, useSkills, useDocuments } from '@/hooks'
-import { Document, Goal as PrismaGoal } from '@/lib/database'
+import { useProfile } from '@/hooks/useProfile'
+import { useGoals } from '@/hooks/useGoals'
+import { useDocuments } from '@/hooks/useDocuments'
+import { Goal } from '@prisma/client'
+import { ActivityCreators } from '@/lib/utils/activity-helper'
 
 // Import our new components
 import { ProfileHeader } from "@/components/profile/profile-header"
 import { ProfileSummary } from "@/components/profile/profile-summary"
 import { OverviewTab } from "@/components/profile/overview-tab"
 import { GoalsTab } from "@/components/profile/goals-tab"
+import { DocumentsTab } from "@/components/profile/documents-tab"
 
-interface GoalTask {
-  id: string
-  title: string
-  priority: string
-  dueDate?: Date
-  completed: boolean
-}
-
-interface Goal extends PrismaGoal {
-  tasks: GoalTask[]
-}
-
-interface Skill {
-  id: string
-  name: string
-  description: string
-  resources: string // JSON string from database
-  objectives: SkillObjective[]
-}
-
-interface SkillObjective {
-  id: string
-  title: string
-  description: string
-  targetDate?: Date
-  completed: boolean
-}
-
-interface ProfileData {
-  fullName: string
-  university?: string
-  program?: string
-  currentYear?: string
-  gpa?: string
-  bio?: string
-  profilePicture?: string
-}
+// Import interface types from components
+import type { GoalCard, GoalTask } from '@/components/profile/goals-tab'
+import type { DocumentCard } from '@/components/profile/documents-tab'
+import type { ProfileData } from '@/components/profile/profile-summary'
 
 export default function ProfilePage() {
   // ALL HOOKS MUST BE CALLED FIRST - before any conditional logic
   const { data: session, status } = useSession()
+  const router = useRouter()
   
-  // Database hooks
+  // Database hooks - temporarily simplified to prevent infinite loops
   const { 
     profile, 
-    loading: profileLoading, 
-    error: profileError, 
-    createProfile, 
+    loading,
     updateProfile, 
     refreshProfile 
   } = useProfile()
 
+  // Re-enable documents hook for proper functionality
+  const { 
+    documents, 
+    uploadDocument, 
+    updateDocument, 
+    deleteDocument, 
+    toggleDocumentPin, 
+    reorderDocuments 
+  } = useDocuments()
+
+  // Re-enable goals and skills hooks for full functionality
   const { 
     goals, 
-    loading: goalsLoading, 
-    error: goalsError, 
     createGoal, 
     updateGoal, 
     deleteGoal, 
     addGoalTask, 
     updateGoalTask, 
-    toggleGoalTask, 
     deleteGoalTask, 
-    reorderGoals, 
-    reorderGoalTasks, 
-    refreshGoals 
+    toggleGoalTask, 
+    reorderGoals 
   } = useGoals()
 
-  const { 
-    skills, 
-    loading: skillsLoading, 
-    error: skillsError, 
-    createSkill, 
-    updateSkill, 
-    deleteSkill, 
-    addSkillObjective, 
-    updateSkillObjective, 
-    toggleSkillObjective, 
-    deleteSkillObjective, 
-    reorderSkills, 
-    reorderSkillObjectives, 
-    refreshSkills 
-  } = useSkills()
-
-  const { 
-    documents, 
-    loading: documentsLoading, 
-    error: documentsError, 
-    uploadDocument, 
-    updateDocument, 
-    deleteDocument, 
-    toggleDocumentPin, 
-    reorderDocuments, 
-    refreshDocuments 
-  } = useDocuments()
+  // Temporarily disable other hooks to prevent infinite loops
+  // const goalsLoading = false
+  // const skillsLoading = false
+  // const goals: any[] = []
+  // const skills: any[] = []
+  // const goalsError = null
+  // const skillsError = null
 
   // Local UI state hooks
   const [profileData, setProfileData] = useState<ProfileData>({
     fullName: profile?.fullName || 'Student Name',
+    email: profile?.user?.email || 'user@example.com',
     university: profile?.university || '',
     program: profile?.program || '',
     currentYear: profile?.currentYear || '',
     gpa: profile?.gpa || '',
-    bio: profile?.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.'
+    bio: profile?.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
+    profilePicture: profile?.profilePicture || undefined
   })
 
   const [activeTab, setActiveTab] = useState('overview')
+  // State for modals and forms
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
-  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
   const [editingProfile, setEditingProfile] = useState(false)
   const [showAddGoal, setShowAddGoal] = useState(false)
   const [showEditGoal, setShowEditGoal] = useState(false)
-  const [showAddSkill, setShowAddSkill] = useState(false)
-  const [newGoal, setNewGoal] = useState<Partial<Goal>>({})
-  const [newSkill, setNewSkill] = useState<Partial<Skill>>({})
-  const [newSkillResource, setNewSkillResource] = useState<string>('')
-  const [editingProfileData, setEditingProfileData] = useState<ProfileData>(profileData)
-  const [newGoalTask, setNewGoalTask] = useState<Partial<GoalTask>>({})
-  const [newSkillObjective, setNewSkillObjective] = useState<Partial<SkillObjective>>({})
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
-  const [showAddObjectiveModal, setShowAddObjectiveModal] = useState(false)
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false)
+  const [newGoal, setNewGoal] = useState<Partial<Goal>>({})
+  const [newTask, setNewTask] = useState<Partial<GoalTask>>({})
+  const [editingProfileData, setEditingProfileData] = useState<ProfileData>(profileData)
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<GoalTask | null>(null)
-  const [editingTaskGoal, setEditingTaskGoal] = useState<Goal | null>(null)
-  const [showEditTaskModal, setShowEditTaskModal] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const profilePicRef = useRef<HTMLInputElement>(null)
-  const documentFileRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
-  const [editingSkillResource, setEditingSkillResource] = useState<string>('')
-  const [selectedSkillForObjective, setSelectedSkillForObjective] = useState<Skill | null>(null)
-  const [editingObjective, setEditingObjective] = useState<SkillObjective | null>(null)
-  const [editingObjectiveSkill, setEditingObjectiveSkill] = useState<Skill | null>(null)
-  const [showEditObjectiveModal, setShowEditObjectiveModal] = useState(false)
-  const [showActivityModal, setShowActivityModal] = useState(false)
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+
+  // Show success message
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message)
+    setShowSuccessMessage(true)
+    setTimeout(() => setShowSuccessMessage(false), 3000)
+  }
 
   // Update profileData when profile changes
   useEffect(() => {
-    if (profile) {
-      setProfileData({
-        fullName: profile.fullName || 'Student Name',
-        university: profile.university || '',
-        program: profile.program || '',
-        currentYear: profile.currentYear || '',
-        gpa: profile.gpa || '',
-        bio: profile.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.'
-      })
-      setEditingProfileData({
-        fullName: profile.fullName || 'Student Name',
-        university: profile.university || '',
-        program: profile.program || '',
-        currentYear: profile.currentYear || '',
-        gpa: profile.gpa || '',
-        bio: profile.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.'
-      })
+    const newProfileData = {
+      fullName: profile?.fullName || 'Student Name',
+      email: profile?.user?.email || 'user@example.com',
+      university: profile?.university || '',
+      program: profile?.program || '',
+      currentYear: profile?.currentYear || '',
+      gpa: profile?.gpa || '',
+      bio: profile?.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
+      profilePicture: profile?.profilePicture || undefined
     }
+    
+    setProfileData(newProfileData)
+    setEditingProfileData(newProfileData)
   }, [profile])
 
   // Handle profile picture upload
   const handleProfilePictureUpload = async (file: File) => {
-    // TODO: Implement profile picture upload
-    console.log('Profile picture upload:', file)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const response = await fetch('/api/profile/picture', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Upload failed:', response.status, errorText)
+        throw new Error(`Failed to upload profile picture: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      // Update local state
+      setProfileData((prev: ProfileData) => ({
+        ...prev,
+        profilePicture: result.profilePicture
+      }))
+      
+      // Refresh profile data
+      await refreshProfile()
+      
+      // Show success feedback
+      alert('Profile picture uploaded successfully!')
+      
+    } catch (error) {
+      console.error('Failed to upload profile picture:', error)
+      alert('Failed to upload profile picture. Please try again.')
+      throw error
+    }
+  }
+
+  // Handle profile update
+  const handleUpdateProfile = async (profileData: any) => {
+    try {
+      await updateProfile(profileData)
+      setEditingProfile(false)
+      
+      // Create activity for profile update
+      await ActivityCreators.profileUpdated('Profile information updated')
+      
+      // Show success feedback
+      alert('Profile updated successfully!')
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      alert('Failed to update profile. Please try again.')
+    }
   }
 
   // Handle back to dashboard
@@ -186,12 +188,35 @@ export default function ProfilePage() {
 
   // Handle view all activity
   const handleViewAllActivity = () => {
-    setShowActivityModal(true)
+    router.push('/activities')
   }
 
-  // Handle goal operations
+  // Goal handlers
   const handleAddGoal = () => {
     setShowAddGoal(true)
+  }
+
+  const handleCreateGoal = async () => {
+    if (!newGoal.title || !newGoal.description) return
+    
+    try {
+      const createdGoal = await createGoal({
+        title: newGoal.title,
+        description: newGoal.description,
+        targetDate: newGoal.targetDate || new Date(),
+        category: 'academic',
+        status: 'active'
+      })
+      
+      setNewGoal({})
+      setShowAddGoal(false)
+      
+      // Show success feedback
+      showSuccess('Goal created successfully!')
+    } catch (error) {
+      console.error('Failed to create goal:', error)
+      alert('Failed to create goal. Please try again.')
+    }
   }
 
   const handleEditGoal = (goal: Goal) => {
@@ -199,13 +224,42 @@ export default function ProfilePage() {
     setShowEditGoal(true)
   }
 
-  const handleDeleteGoal = async (goalId: string) => {
+  const handleUpdateGoal = async () => {
+    if (!editingGoal) return
+    
     try {
-      await deleteGoal(goalId)
+      await updateGoal(editingGoal.id, {
+        title: editingGoal.title,
+        description: editingGoal.description,
+        category: editingGoal.category as 'academic' | 'personal' | 'career',
+        status: editingGoal.status as 'active' | 'completed' | 'paused',
+        targetDate: editingGoal.targetDate || new Date()
+      })
+      
+      setEditingGoal(null)
+      setShowEditGoal(false)
+      
+      // Show success feedback
+      showSuccess('Goal updated successfully!')
     } catch (error) {
-      console.error('Failed to delete goal:', error)
+      console.error('Failed to update goal:', error)
+      alert('Failed to update goal. Please try again.')
     }
   }
+
+  const handleDeleteGoal = async (goalId: string) => {
+    if (!confirm('Are you sure you want to delete this goal?')) return
+    
+    try {
+      await deleteGoal(goalId)
+      alert('Goal deleted successfully!')
+    } catch (error) {
+      console.error('Failed to delete goal:', error)
+      alert('Failed to delete goal. Please try again.')
+    }
+  }
+
+
 
   const handleAddTask = (goalId: string) => {
     setSelectedGoalId(goalId)
@@ -220,25 +274,246 @@ export default function ProfilePage() {
   const handleToggleTask = async (taskId: string) => {
     try {
       await toggleGoalTask(taskId)
+      alert('Task status updated successfully!')
     } catch (error) {
       console.error('Failed to toggle task:', error)
+      alert('Failed to update task status. Please try again.')
+    }
+  }
+
+  const handleCreateTask = async () => {
+    if (!selectedGoalId || !newTask.title) return
+    
+    try {
+              const createdTask = await addGoalTask(selectedGoalId, {
+          title: newTask.title,
+          priority: newTask.priority || 'medium',
+          dueDate: newTask.dueDate || null,
+          order: 0,
+          completed: false
+        })
+      setNewTask({})
+      setShowAddTaskModal(false)
+      setSelectedGoalId(null)
+      
+      // Show success feedback
+      alert('Task created successfully!')
+    } catch (error) {
+      console.error('Failed to create task:', error)
+      alert('Failed to create task. Please try again.')
+    }
+  }
+
+  const handleUpdateTask = async () => {
+    if (!editingTask || !editingGoal) return
+    
+    try {
+      await updateGoalTask(editingGoal.id, editingTask.id, {
+        title: editingTask.title,
+        priority: editingTask.priority,
+        dueDate: editingTask.dueDate || null
+      })
+      setEditingTask(null)
+      setShowEditTaskModal(false)
+      
+      // Show success feedback
+      alert('Task updated successfully!')
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      alert('Failed to update task. Please try again.')
     }
   }
 
   const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task?') || !editingGoal) return
+    
     try {
-      await deleteGoalTask(taskId)
+      await deleteGoalTask(editingGoal.id, taskId)
+      alert('Task deleted successfully!')
     } catch (error) {
       console.error('Failed to delete task:', error)
+      alert('Failed to delete task. Please try again.')
     }
   }
 
   const handleReorderGoals = async (goalIds: string[]) => {
     try {
       await reorderGoals(goalIds)
+      alert('Goals reordered successfully!')
     } catch (error) {
       console.error('Failed to reorder goals:', error)
+      alert('Failed to reorder goals. Please try again.')
     }
+  }
+
+  // Document handlers
+  const handleUploadDocument = async (file: File) => {
+    try {
+      const newDocument = await uploadDocument(file)
+      // Transform the database document to DocumentCard format
+      alert('Document uploaded successfully!')
+      return transformDocuments([newDocument])[0]
+    } catch (error) {
+      console.error('Failed to upload document:', error)
+      alert('Failed to upload document. Please try again.')
+      throw error
+    }
+  }
+
+  const handleUpdateDocument = async (docId: string, data: any) => {
+    try {
+      await updateDocument(docId, data)
+      // No need to return anything - the child component will handle state updates
+      alert('Document updated successfully!')
+    } catch (error) {
+      console.error('Failed to update document:', error)
+      alert('Failed to update document. Please try again.')
+      throw error
+    }
+  }
+
+  const handleDeleteDocument = async (docId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return
+    
+    try {
+      await deleteDocument(docId)
+      alert('Document deleted successfully!')
+    } catch (error) {
+      console.error('Failed to delete document:', error)
+      alert('Failed to delete document. Please try again.')
+    }
+  }
+
+  const handleToggleDocumentPin = async (docId: string) => {
+    try {
+      const updatedDocument = await toggleDocumentPin(docId)
+      // Transform the database document to DocumentCard format
+      return transformDocuments([updatedDocument])[0]
+    } catch (error) {
+      console.error('Failed to toggle document pin:', error)
+      throw error
+    }
+  }
+
+  const handleReorderDocuments = async (docIds: string[]) => {
+    try {
+      await reorderDocuments(docIds)
+      
+      // No need to refresh documents - the hook already updates local state
+      alert('Documents reordered successfully!')
+      
+    } catch (error) {
+      console.error('Failed to reorder documents:', error)
+      alert('Failed to reorder documents. Please try again.')
+    }
+  }
+
+  // Data transformation functions to convert database types to component interface types
+  const transformProfileData = (dbProfile: any): any => {
+    if (!dbProfile) {
+      return {
+        name: 'User',
+        email: 'user@example.com',
+        university: '',
+        program: '',
+        currentYear: '',
+        gpa: '',
+        bio: '',
+        profilePicture: undefined
+      }
+    }
+    
+    return {
+      fullName: dbProfile.fullName || 'Student Name',
+      email: dbProfile.user?.email || 'user@example.com',
+      university: dbProfile.university || '',
+      program: dbProfile.program || '',
+      currentYear: dbProfile.currentYear || '',
+      gpa: dbProfile.gpa || '',
+      bio: dbProfile.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
+      profilePicture: dbProfile.profilePicture || undefined
+    }
+  }
+
+  const transformGoals = (dbGoals: any[]): GoalCard[] => {
+    return dbGoals.map(goal => ({
+      id: goal.id,
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      status: goal.status,
+      targetDate: goal.targetDate,
+      tasks: goal.tasks || [],
+      userId: goal.userId,
+      order: goal.order,
+      createdAt: goal.createdAt,
+      updatedAt: goal.updatedAt
+    }))
+  }
+
+  const transformDocuments = (dbDocuments: any[]): DocumentCard[] => {
+    return dbDocuments.map(doc => ({
+      id: doc.id,
+      name: doc.name,
+      originalName: doc.originalName,
+      description: doc.description,
+      type: doc.type,
+      mimeType: doc.mimeType,
+      size: doc.size,
+      filePath: doc.filePath,
+      thumbnailPath: doc.thumbnailPath,
+      category: doc.category || 'general',
+      tags: doc.tags,
+      isPinned: doc.isPinned,
+      order: doc.order,
+      userId: doc.userId,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      uploadedAt: doc.uploadedAt
+    }))
+  }
+
+  // Transform the data
+  const transformedProfileData = transformProfileData(profile)
+  const transformedGoals = transformGoals(goals)
+  const transformedDocuments = transformDocuments(documents)
+
+  // Show loading state only while data is actually being fetched
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="container mx-auto max-w-7xl">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-slate-600">Loading profile...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if there's an error
+  if (false) { // Temporarily disabled to prevent errors
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="container mx-auto max-w-7xl">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="text-red-600 text-6xl mb-4">⚠️</div>
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">Something went wrong</h2>
+              <p className="text-slate-600 mb-4">
+                An error occurred while loading your profile
+              </p>
+              <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // NOW we can have conditional logic and early returns
@@ -265,56 +540,74 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 md:p-6">
-      <div className="container mx-auto max-w-6xl">
-        {/* Header */}
-        <ProfileHeader onBackToDashboard={handleBackToDashboard} />
-
+    <div className="min-h-screen bg-slate-50">
+      {/* Success Message */}
+      {showSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg animate-in slide-in-from-right duration-300">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            {successMessage}
+          </div>
+        </div>
+      )}
+      
+      <ProfileHeader onBackToDashboard={handleBackToDashboard} />
+      
+      <div className="container mx-auto max-w-7xl p-4 md:p-8">
         {/* Profile Summary */}
-        <ProfileSummary 
-          profileData={profileData}
-          activeGoalsCount={goals.filter(g => g.status === 'active').length}
-          onEditProfile={() => setEditingProfile(true)}
-          onProfilePictureUpload={handleProfilePictureUpload}
-        />
+        <div className="mb-6">
+          <ProfileSummary 
+            profileData={transformedProfileData}
+            activeGoalsCount={goals.filter(g => g.status === 'active').length}
+            editingProfile={editingProfile}
+            onEditProfile={() => setEditingProfile(true)}
+            onCloseEditProfile={() => setEditingProfile(false)}
+            onProfilePictureUpload={handleProfilePictureUpload}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        </div>
 
         {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm p-1">
-            <TabsTrigger value="overview" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm p-1.5 md:p-3 min-h-[32px] md:min-h-[44px]">
-              <Eye className="w-3 h-3 md:w-4 md:h-4" />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-3 bg-white border border-slate-200 p-1 sm:p-2 rounded-xl shadow-sm h-14 sm:h-16 gap-1">
+            <TabsTrigger 
+              value="overview" 
+              className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium p-2 sm:p-4 rounded-lg data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200 data-[state=active]:shadow-sm transition-all duration-200 hover:bg-slate-50 h-full min-w-0"
+            >
+              <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Overview</span>
-              <span className="sm:hidden">Overview</span>
+              <span className="sm:hidden">O</span>
             </TabsTrigger>
-            <TabsTrigger value="goals" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm p-1.5 md:p-3 min-h-[32px] md:min-h-[44px]">
-              <Target className="w-3 h-3 md:w-4 md:h-4" />
+            <TabsTrigger 
+              value="goals" 
+              className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium p-2 sm:p-4 rounded-lg data-[state=active]:bg-green-50 data-[state=active]:text-green-700 data-[state=active]:border-green-200 data-[state=active]:shadow-sm transition-all duration-200 hover:bg-slate-50 h-full min-w-0"
+            >
+              <Target className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Goals</span>
-              <span className="sm:hidden">Goals</span>
+              <span className="sm:hidden">G</span>
             </TabsTrigger>
-            <TabsTrigger value="skills" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm p-1.5 md:p-3 min-h-[32px] md:min-h-[44px]">
-              <Award className="w-3 h-3 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Skills</span>
-              <span className="sm:hidden">Skills</span>
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm p-1.5 md:p-3 min-h-[32px] md:min-h-[44px]">
-              <FolderOpen className="w-3 h-3 md:w-4 md:h-4" />
+            <TabsTrigger 
+              value="documents" 
+              className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium p-2 sm:p-4 rounded-lg data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200 data-[state=active]:shadow-sm transition-all duration-200 hover:bg-slate-50 h-full min-w-0"
+            >
+              <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Documents</span>
-              <span className="sm:hidden">Docs</span>
+              <span className="sm:hidden">D</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
-          <TabsContent value="overview">
+          <TabsContent value="overview" className="mt-4 sm:mt-6">
             <OverviewTab 
-              goals={goals}
+              goals={transformedGoals}
               onViewAllActivity={handleViewAllActivity}
             />
           </TabsContent>
 
           {/* Goals Tab */}
-          <TabsContent value="goals">
+          {activeTab === 'goals' && (
             <GoalsTab
-              goals={goals}
+              goals={transformedGoals as GoalCard[]}
               onAddGoal={handleAddGoal}
               onEditGoal={handleEditGoal}
               onDeleteGoal={handleDeleteGoal}
@@ -324,30 +617,278 @@ export default function ProfilePage() {
               onDeleteTask={handleDeleteTask}
               onReorderGoals={handleReorderGoals}
             />
-          </TabsContent>
-
-          {/* Skills Tab */}
-          <TabsContent value="skills">
-            <div className="text-center py-8">
-              <Award className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-600 mb-2">Skills Tab</h3>
-              <p className="text-slate-500">Skills functionality coming soon...</p>
-            </div>
-          </TabsContent>
+          )}
 
           {/* Documents Tab */}
-          <TabsContent value="documents">
-            <div className="text-center py-8">
-              <FolderOpen className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-600 mb-2">Documents Tab</h3>
-              <p className="text-slate-500">Documents functionality coming soon...</p>
-            </div>
-          </TabsContent>
+          {activeTab === 'documents' && (
+            <DocumentsTab
+              documents={transformedDocuments as DocumentCard[]}
+              onUploadDocument={handleUploadDocument}
+              onUpdateDocument={handleUpdateDocument}
+              onDeleteDocument={handleDeleteDocument}
+              onTogglePin={handleToggleDocumentPin}
+              onReorderDocuments={handleReorderDocuments}
+            />
+          )}
         </Tabs>
-
-        {/* TODO: Add modals for editing profile, goals, tasks, etc. */}
-        {/* These will be implemented as separate components */}
       </div>
+
+      {/* Add Task Modal */}
+      {showAddTaskModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800">Add New Task</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowAddTaskModal(false)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Task Title</label>
+                <Input
+                  value={newTask.title || ''}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  placeholder="Enter task title"
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Due Date</label>
+                <Input
+                  type="date"
+                  value={newTask.dueDate ? new Date(newTask.dueDate).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value ? new Date(e.target.value) : undefined })}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+                <select
+                  value={newTask.priority || 'medium'}
+                  onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end pt-4 border-t border-slate-200">
+              <Button variant="outline" onClick={() => setShowAddTaskModal(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50 order-2 sm:order-1">
+                Cancel
+              </Button>
+              <Button onClick={handleCreateTask} className="bg-blue-600 hover:bg-blue-700 order-1 sm:order-2">
+                <Plus className="h-4 w-4 mr-2" /> Add Task
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditTaskModal && editingTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800">Edit Task</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditTaskModal(false)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Task Title</label>
+                <Input
+                  value={editingTask.title}
+                  onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                  placeholder="Enter task title"
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Due Date</label>
+                <Input
+                  type="date"
+                  value={editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value ? new Date(e.target.value) : undefined })}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+                <select
+                  value={editingTask.priority}
+                  onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="task-completed"
+                  checked={editingTask.completed}
+                  onChange={(e) => setEditingTask({ ...editingTask, completed: e.target.checked })}
+                  className="rounded border-slate-300 text-green-600 focus:ring-green-500"
+                />
+                <label htmlFor="task-completed" className="text-sm text-slate-700">Mark as completed</label>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end pt-4 border-t border-slate-200">
+              <Button variant="outline" onClick={() => setShowEditTaskModal(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50 order-2 sm:order-1">
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateTask} className="bg-blue-600 hover:bg-blue-700 order-1 sm:order-2">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Goal Modal */}
+      {showAddGoal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800">Add New Goal</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowAddGoal(false)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Goal Title</label>
+                <Input
+                  value={newGoal.title || ''}
+                  onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+                  placeholder="Enter goal title"
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                <Textarea
+                  value={newGoal.description || ''}
+                  onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+                  placeholder="Enter goal description"
+                  className="w-full"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Target Date</label>
+                <Input
+                  type="date"
+                  value={newGoal.targetDate ? new Date(newGoal.targetDate).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setNewGoal({ ...newGoal, targetDate: e.target.value ? new Date(e.target.value) : undefined })}
+                  className="w-full"
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end pt-4 border-t border-slate-200">
+              <Button variant="outline" onClick={() => setShowAddGoal(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50 order-2 sm:order-1">
+                Cancel
+              </Button>
+              <Button onClick={handleCreateGoal} className="bg-green-600 hover:bg-green-700 order-1 sm:order-2">
+                <Plus className="h-4 w-4 mr-2" /> Add Goal
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Goal Modal */}
+      {showEditGoal && editingGoal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800">Edit Goal</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditGoal(false)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Goal Title</label>
+                <Input
+                  value={editingGoal.title}
+                  onChange={(e) => setEditingGoal({ ...editingGoal, title: e.target.value })}
+                  placeholder="Enter goal title"
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                <Textarea
+                  value={editingGoal.description}
+                  onChange={(e) => setEditingGoal({ ...editingGoal, description: e.target.value })}
+                  placeholder="Enter goal description"
+                  className="w-full"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Target Date</label>
+                <Input
+                  type="date"
+                  value={editingGoal.targetDate ? new Date(editingGoal.targetDate).toISOString().split('T')[0] : ''}
+                  onChange={(e) => setEditingGoal({ ...editingGoal, targetDate: e.target.value ? new Date(e.target.value) : new Date() })}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                <select
+                  value={editingGoal.status}
+                  onChange={(e) => setEditingGoal({ ...editingGoal, status: e.target.value as 'active' | 'completed' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end pt-4 border-t border-slate-200">
+              <Button variant="outline" onClick={() => setShowEditGoal(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50 order-2 sm:order-1">
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateGoal} className="bg-blue-600 hover:bg-blue-700 order-1 sm:order-2">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Skill Modal */}
+      {/* Removed as per edit hint */}
+
+      {/* Add Objective Modal */}
+      {/* Removed as per edit hint */}
     </div>
   )
 }

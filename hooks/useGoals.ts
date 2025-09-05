@@ -1,55 +1,53 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
-import { Goal, GoalTask, CreateGoalData, UpdateGoalData, CreateGoalTaskData, UpdateGoalTaskData } from '@/lib/database'
+import { useSession } from './use-session-simple'
+import { Goal, GoalTask } from '@prisma/client'
 
 interface UseGoalsReturn {
   goals: Goal[]
   loading: boolean
   error: string | null
-  createGoal: (data: CreateGoalData) => Promise<void>
-  updateGoal: (goalId: string, data: UpdateGoalData) => Promise<void>
+  createGoal: (data: any) => Promise<void>
+  updateGoal: (goalId: string, data: any) => Promise<void>
   deleteGoal: (goalId: string) => Promise<void>
-  addGoalTask: (goalId: string, data: CreateGoalTaskData) => Promise<void>
-  updateGoalTask: (taskId: string, data: UpdateGoalTaskData) => Promise<void>
+  addGoalTask: (goalId: string, data: Omit<GoalTask, 'id' | 'goalId' | 'createdAt' | 'updatedAt'>) => Promise<GoalTask>
+  updateGoalTask: (goalId: string, taskId: string, updates: Partial<GoalTask>) => Promise<GoalTask>
   toggleGoalTask: (taskId: string) => Promise<void>
-  deleteGoalTask: (taskId: string) => Promise<void>
+  deleteGoalTask: (goalId: string, taskId: string) => Promise<void>
   reorderGoals: (goalIds: string[]) => Promise<void>
   reorderGoalTasks: (goalId: string, taskIds: string[]) => Promise<void>
   refreshGoals: () => Promise<void>
 }
 
-export function useGoals(): UseGoalsReturn {
+export const useGoals = () => {
   const { data: session, status } = useSession()
   const [goals, setGoals] = useState<Goal[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchGoals = useCallback(async () => {
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
-      
-      const response = await fetch('/api/goals', {
-        credentials: 'include'
-      })
-      
+      const response = await fetch('/api/goals')
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to fetch goals')
       }
-      
       const data = await response.json()
       setGoals(data)
     } catch (err) {
-      console.error('Error fetching goals:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch goals')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [(session?.user as any)?.id, status])
 
-  const createGoal = useCallback(async (data: CreateGoalData) => {
+  const createGoal = useCallback(async (data: any) => {
     // Only create if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !(session?.user as any)?.id) {
       throw new Error('User not authenticated')
     }
 
@@ -79,9 +77,9 @@ export function useGoals(): UseGoalsReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [(session?.user as any)?.id, status])
 
-  const updateGoal = useCallback(async (goalId: string, data: UpdateGoalData) => {
+  const updateGoal = useCallback(async (goalId: string, data: any) => {
     try {
       setLoading(true)
       setError(null)
@@ -136,153 +134,121 @@ export function useGoals(): UseGoalsReturn {
     }
   }, [])
 
-  const addGoalTask = useCallback(async (goalId: string, data: CreateGoalTaskData) => {
+  const addGoalTask = useCallback(async (goalId: string, task: Omit<GoalTask, 'id' | 'goalId' | 'createdAt' | 'updatedAt'>) => {
     try {
-      setLoading(true)
       setError(null)
-      
       const response = await fetch(`/api/goals/${goalId}/tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to add task to goal')
       }
-      
+
       const newTask = await response.json()
-      setGoals(prev => prev.map(goal => 
-        goal.id === goalId 
-          ? { ...goal, tasks: [...goal.tasks, newTask] }
-          : goal
-      ))
+      
+      setGoals(prevGoals => 
+        prevGoals.map(goal => 
+          goal.id === goalId 
+            ? { ...goal, tasks: [...(goal as any).tasks || [], newTask] }
+            : goal
+        )
+      )
+
+      return newTask
     } catch (err) {
-      console.error('Error adding goal task:', err)
-      setError(err instanceof Error ? err.message : 'Failed to add goal task')
+      setError(err instanceof Error ? err.message : 'Failed to add task to goal')
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [])
 
-  const updateGoalTask = useCallback(async (taskId: string, data: UpdateGoalTaskData) => {
+  const updateGoalTask = useCallback(async (goalId: string, taskId: string, updates: Partial<GoalTask>) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      // Find the goal that contains this task
-      const goal = goals.find(g => g.tasks.some(t => t.id === taskId))
-      if (!goal) {
-        throw new Error('Goal not found for task')
-      }
-      
-      const response = await fetch(`/api/goals/${goal.id}/tasks/${taskId}`, {
+      const response = await fetch(`/api/goals/${goalId}/tasks/${taskId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to update task')
       }
-      
+
       const updatedTask = await response.json()
-      setGoals(prev => prev.map(g => 
-        g.id === goal.id 
-          ? { ...g, tasks: g.tasks.map(t => t.id === taskId ? updatedTask : t) }
-          : g
-      ))
+      
+      setGoals(prevGoals => 
+        prevGoals.map(g => 
+          g.id === goalId 
+            ? { ...g, tasks: (g as any).tasks?.map((t: any) => t.id === taskId ? updatedTask : t) || [] }
+            : g
+        )
+      )
+
+      return updatedTask
     } catch (err) {
-      console.error('Error updating goal task:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update goal task')
+      setError(err instanceof Error ? err.message : 'Failed to update task')
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [goals])
+  }, [])
 
   const toggleGoalTask = useCallback(async (taskId: string) => {
     try {
-      setLoading(true)
       setError(null)
-      
       // Find the goal that contains this task
-      const goal = goals.find(g => g.tasks.some(t => t.id === taskId))
+      const goal = goals.find(g => (g as any).tasks?.some((t: any) => t.id === taskId))
       if (!goal) {
         throw new Error('Goal not found for task')
       }
-      
-      const task = goal.tasks.find(t => t.id === taskId)
-      if (!task) {
-        throw new Error('Task not found')
-      }
-      
-      const response = await fetch(`/api/goals/${goal.id}/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+
+      const response = await fetch(`/api/goals/${goal.id}/tasks/${taskId}/toggle`, {
+        method: 'PUT'
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to toggle task')
       }
-      
+
       const updatedTask = await response.json()
-      setGoals(prev => prev.map(g => 
-        g.id === goal.id 
-          ? { ...g, tasks: g.tasks.map(t => t.id === taskId ? updatedTask : t) }
-          : g
-      ))
+      
+      setGoals(prevGoals => 
+        prevGoals.map(g => 
+          g.id === goal.id 
+            ? { ...g, tasks: (g as any).tasks?.map((t: any) => t.id === taskId ? updatedTask : t) || [] }
+            : g
+        )
+      )
     } catch (err) {
-      console.error('Error toggling goal task:', err)
-      setError(err instanceof Error ? err.message : 'Failed to toggle goal task')
+      setError(err instanceof Error ? err.message : 'Failed to toggle task')
       throw err
-    } finally {
-      setLoading(false)
     }
   }, [goals])
 
-  const deleteGoalTask = useCallback(async (taskId: string) => {
+  const deleteGoalTask = useCallback(async (goalId: string, taskId: string) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      // Find the goal that contains this task
-      const goal = goals.find(g => g.tasks.some(t => t.id === taskId))
-      if (!goal) {
-        throw new Error('Goal not found for task')
-      }
-      
-      const response = await fetch(`/api/goals/${goal.id}/tasks/${taskId}`, {
-        method: 'DELETE',
-        credentials: 'include'
+      const response = await fetch(`/api/goals/${goalId}/tasks/${taskId}`, {
+        method: 'DELETE'
       })
-      
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error('Failed to delete task')
       }
-      
-      setGoals(prev => prev.map(g => 
-        g.id === goal.id 
-          ? { ...g, tasks: g.tasks.filter(t => t.id !== taskId) }
-          : g
-      ))
+
+      setGoals(prevGoals => 
+        prevGoals.map(g => 
+          g.id === goalId 
+            ? { ...g, tasks: (g as any).tasks?.filter((t: any) => t.id !== taskId) || [] }
+            : g
+        )
+      )
     } catch (err) {
-      console.error('Error deleting goal task:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete goal task')
+      setError(err instanceof Error ? err.message : 'Failed to delete task')
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [goals])
+  }, [])
 
   const reorderGoals = useCallback(async (goalIds: string[]) => {
     try {
@@ -320,47 +286,51 @@ export function useGoals(): UseGoalsReturn {
 
   const reorderGoalTasks = useCallback(async (goalId: string, taskIds: string[]) => {
     try {
-      setLoading(true)
       setError(null)
-      
-      const goal = goals.find(g => g.id === goalId)
-      if (!goal) {
-        throw new Error('Goal not found')
+      const response = await fetch(`/api/goals/${goalId}/tasks/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskIds })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reorder tasks')
       }
-      
-      // Optimistically update the UI
-      const reorderedTasks = taskIds.map(id => goal.tasks.find(t => t.id === id)).filter(Boolean) as GoalTask[]
-      setGoals(prev => prev.map(g => 
-        g.id === goalId ? { ...g, tasks: reorderedTasks } : g
-      ))
-      
-      // TODO: Implement reorder API call when endpoint is available
-      // const response = await fetch(`/api/goals/${goalId}/tasks/reorder`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ taskIds }),
-      // })
-      
-      // if (!response.ok) {
-      //   throw new Error(`HTTP error! status: ${response.status}`)
-      // }
+
+      const goal = goals.find(g => g.id === goalId)
+      if (goal) {
+        const reorderedTasks = taskIds.map(id => (goal as any).tasks?.find((t: any) => t.id === id)).filter(Boolean) as GoalTask[]
+        
+        setGoals(prevGoals => 
+          prevGoals.map(g => 
+            g.id === goalId 
+              ? { ...g, tasks: reorderedTasks }
+              : g
+          )
+        )
+      }
     } catch (err) {
-      console.error('Error reordering goal tasks:', err)
-      setError(err instanceof Error ? err.message : 'Failed to reorder goal tasks')
-      // Revert optimistic update
-      await fetchGoals()
-    } finally {
-      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Failed to reorder tasks')
+      throw err
     }
-  }, [goals, fetchGoals])
+  }, [goals])
 
   const refreshGoals = useCallback(async () => {
-    await fetchGoals()
-  }, [fetchGoals])
+    if (status === 'authenticated' && session?.user) {
+      await fetchGoals()
+    }
+  }, [fetchGoals, status, session?.user])
 
+  // Only fetch goals when user authentication status changes
   useEffect(() => {
-    fetchGoals()
-  }, [fetchGoals])
+    if (status === 'authenticated' && session?.user) {
+      fetchGoals()
+    } else if (status === 'unauthenticated') {
+      setGoals([])
+      setLoading(false)
+      setError(null)
+    }
+  }, [status, session?.user]) // Only depend on status and user, not fetchGoals
 
   return {
     goals,

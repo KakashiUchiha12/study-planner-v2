@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { documentService } from '@/lib/database'
-import { join } from 'path'
+
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 
@@ -45,11 +45,11 @@ export async function GET(
     const fileBuffer = await readFile(filePath)
 
     // Return the file with appropriate headers
-    return new NextResponse(fileBuffer as any, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         'Content-Type': document.mimeType,
         'Content-Disposition': `inline; filename="${document.name}"`,
-        'Cache-Control': 'public, max-age=31536000',
+        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
       },
     })
 

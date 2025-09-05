@@ -1,0 +1,22 @@
+# Production Environment Variables for cPanel Deployment
+# Copy this content to .env.local and fill in your actual values
+
+# Database Configuration
+DATABASE_URL="mysql://freemdcat_freemdcatv2:freemdcat12345@localhost/freemdcat_studyplannerv2.0"
+
+# NextAuth Configuration
+NEXTAUTH_URL="https://studyplanner.freemdcat.com"
+NEXTAUTH_SECRET="generate-a-random-secret-key-here"
+
+# File Storage
+UPLOAD_DIR="/public_html/studyplanner/uploads"
+
+# Optional: Email Configuration (if using email features)
+# EMAIL_SERVER_HOST="smtp.your-provider.com"
+# EMAIL_SERVER_PORT=587
+# EMAIL_SERVER_USER="your-email@domain.com"
+# EMAIL_SERVER_PASSWORD="your-email-password"
+
+# Optional: External Services
+# UPLOADTHING_SECRET="your-uploadthing-secret"
+# UPLOADTHING_APP_ID="your-uploadthing-app-id"

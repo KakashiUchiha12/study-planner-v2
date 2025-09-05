@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
     const type = searchParams.get('type') || 'personalized';
     const limit = parseInt(searchParams.get('limit') || '20');
-    const _category = searchParams.get('category');
+    // const category = searchParams.get('category'); // TODO: Implement category filtering
     const hashtags = searchParams.get('hashtags')?.split(',') || [];
     const program = searchParams.get('program');
 

@@ -80,6 +80,7 @@ model User {
   testMarks         TestMark[]
   profile           UserProfile?
   userSettings      UserSettings?
+  userActivities    UserActivity[]
 }
 
 model UserProfile {
@@ -373,4 +374,23 @@ model CalendarEvent {
   @@index([start])
   @@index([type])
   @@index([completed])
+}
+
+model UserActivity {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  type        String   // e.g., "profile_updated", "goal_created", "skill_progress", "test_completed"
+  title       String
+  description String?
+  metadata    String?  // JSON string for additional data
+  timestamp   DateTime @default(now())
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([timestamp])
+  @@index([isRead])
 }

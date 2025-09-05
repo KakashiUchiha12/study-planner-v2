@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/hooks/use-session-simple"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,7 +16,8 @@ import { DeleteSubjectDialog } from "@/components/subjects/delete-subject-dialog
 import { SubjectDetailDialog } from "@/components/subjects/subject-detail-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
-import { useSubjects, useMigration } from "@/hooks"
+import { useOfflineSubjects } from "@/hooks/useOfflineSubjects"
+import { useMigration } from "@/hooks"
 import { Subject } from "@prisma/client"
 import { notifyDataUpdate } from "@/lib/data-sync"
 import { getColorHex } from "@/lib/utils/colors"
@@ -41,7 +42,7 @@ export default function SubjectsPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const router = useRouter()
 
-  // Use database hooks
+  // Use offline-aware database hooks
   const { 
     subjects, 
     loading: subjectsLoading, 
@@ -49,8 +50,9 @@ export default function SubjectsPage() {
     createSubject, 
     updateSubject, 
     deleteSubject,
-    refreshSubjects 
-  } = useSubjects()
+    refreshSubjects,
+    isOnline
+  } = useOfflineSubjects()
   
   const { autoMigrateIfNeeded } = useMigration()
 
@@ -139,7 +141,7 @@ export default function SubjectsPage() {
         totalChapters: newSubject.totalChapters || 0,
         completedChapters: newSubject.completedChapters || 0,
         progress: newSubject.progress || 0,
-        nextExam: newSubject.nextExam || undefined,
+        nextExam: newSubject.nextExam || null,
         assignmentsDue: newSubject.assignmentsDue || 0
       })
       
@@ -291,6 +293,13 @@ export default function SubjectsPage() {
             </div>
 
             <div className="flex items-center space-x-2">
+              {/* Offline Indicator */}
+              {!isOnline && (
+                <div className="flex items-center space-x-1 text-amber-600 dark:text-amber-400">
+                  <div className="h-2 w-2 rounded-full bg-amber-500"></div>
+                  <span className="text-xs font-medium">Offline</span>
+                </div>
+              )}
               <ThemeToggle />
               <Button onClick={() => setDialogState({ ...dialogState, add: true })}>
                 <Plus className="h-4 w-4 mr-2" />

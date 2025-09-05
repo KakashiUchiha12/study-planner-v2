@@ -1,41 +1,35 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/hooks/use-session-simple'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar } from '@/components/ui/calendar'
 import { TimePicker } from '@/components/ui/time-picker'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Clock, BookOpen, Target, TrendingUp, TrendingDown, Plus, ArrowRight, CheckCircle, CheckCircle2, Circle, AlertTriangle, Award, Users, FileText, BarChart3, Flag, Search, Bell, Settings, LogOut, ChevronDown, X, User, CalendarIcon, Timer, CheckSquare, Square, Zap, Download } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Clock, BookOpen, Plus, CheckCircle2, FileText, BarChart3, Flag, Search, Settings, LogOut, ChevronDown, X, User, CalendarIcon, Timer, Zap } from 'lucide-react'
 import { useSubjects, useTasks, useStudySessions, useTestMarks } from '@/hooks'
+import { useProfile } from '@/hooks/useProfile'
 import { useUserSettings } from '@/hooks/useUserSettings'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { OfflineStatus } from '@/components/offline-status'
 import { ExpandableSection } from '@/components/expandable-section'
-import { ProgressiveTaskManager } from '@/components/progressive-task-manager'
 import { TaskManager } from '@/components/tasks/task-manager'
 import { ClientOnly } from '@/components/client-only'
 import { NotificationCenter } from '@/components/notifications/notification-center'
 import { StudyTimer } from '@/components/study-sessions/study-timer'
 import TimeTableButton from '@/components/dashboard/TimeTableButton'
 import Link from 'next/link'
-import { format, isToday, isTomorrow, isPast, addDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfDay } from 'date-fns'
-import { notificationManager } from '@/lib/notifications'
+import { format, isToday, isTomorrow, isPast, startOfWeek, endOfWeek } from 'date-fns'
 import { useDataSync } from '@/lib/data-sync'
 import type { Task } from '@prisma/client'
-import { signOut } from 'next-auth/react'
+// import { signOut } from 'next-auth/react' // Removed NextAuth dependency
 
 // Custom hook to avoid hydration mismatch
 function useTimeOfDay() {
@@ -66,42 +60,7 @@ interface User {
   totalStudyTime?: number // total study time this week
 }
 
-interface TestMark {
-  id: string
-  date: string | Date
-  subjectId: string
-  subjectName: string
-  marksObtained: number
-  totalMarks: number
-  title?: string
-  percentage?: number
-  grade?: string
-}
 
-interface StudySession {
-  id: string
-  subject: string
-  duration: number // in minutes
-  date: Date
-  notes?: string
-  efficiency?: number // 1-10 rating
-  sessionType?: "Focused Study" | "Review" | "Practice" | "Research" | "Group Study"
-  productivity?: 1 | 2 | 3 | 4 | 5
-  topicsCovered?: string[]
-  materialsUsed?: string[]
-}
-
-interface Subject {
-  id: string
-  name: string
-  code: string
-  credits: number
-  instructor: string
-  color: string
-  progress: number // 0-100
-  nextExam?: Date
-  assignmentsDue?: number
-}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -114,7 +73,6 @@ export default function DashboardPage() {
     loading: tasksLoading, 
     error: tasksError,
     createTask,
-    toggleTaskComplete,
     updateTask,
     deleteTask,
     refreshTasks
@@ -146,7 +104,7 @@ export default function DashboardPage() {
         priority: task.priority,
         description: task.description,
         dueDate: task.dueDate,
-        completed: task.completedAt ? true : false,
+        completed: task.status === 'completed',
         allFields: Object.keys(task)
       })))
     }
@@ -158,16 +116,20 @@ export default function DashboardPage() {
       id: task.id,
       title: task.title,
       description: task.description || '',
-      completed: task.status === 'completed', // Convert status to completed boolean
-      createdAt: new Date(task.createdAt),
-      dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+      status: task.status,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      dueDate: task.dueDate,
+      completedAt: task.completedAt,
       priority: task.priority as 'low' | 'medium' | 'high',
-      category: task.category || 'Study', // Use actual category or default to 'Study'
-      estimatedTime: task.estimatedTime || 0,
-      tags: task.tags ? JSON.parse(task.tags) : [],
-      subject: task.subjectId || undefined, // Convert null to undefined
-      progress: task.progress || 0,
-      timeSpent: task.timeSpent || 0
+      category: task.category || 'Study',
+      estimatedTime: task.estimatedTime || null,
+      tags: task.tags || '',
+      subjectId: task.subjectId || null,
+      progress: task.progress || null,
+      timeSpent: task.timeSpent || null,
+      order: task.order || 0,
+      userId: task.userId
     }))
   }, [tasks])
 
@@ -177,10 +139,10 @@ export default function DashboardPage() {
       console.log('🔍 Adapted Tasks for TaskManager:', adaptedTasks.map(task => ({
         id: task.id,
         title: task.title,
-        completed: task.completed,
+        completed: task.status === 'completed',
         category: task.category,
         priority: task.priority,
-        status: task.completed ? 'completed' : 'pending'
+        status: task.status
       })))
     }
   }, [adaptedTasks])
@@ -189,12 +151,12 @@ export default function DashboardPage() {
   useEffect(() => {
     console.log('🔍 Dashboard: adaptedTasks updated:', {
       count: adaptedTasks.length,
-      tasks: adaptedTasks.map(t => ({ id: t.id, title: t.title, completed: t.completed }))
+      tasks: adaptedTasks.map(t => ({ id: t.id, title: t.title, completed: t.status === 'completed' }))
     })
   }, [adaptedTasks])
 
-  const [taskSort, setTaskSort] = useState("dueDate") // dueDate, priority, createdAt
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  // const [taskSort, setTaskSort] = useState("dueDate") // dueDate, priority, createdAt
+  // const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   
   // Local state for new task form
   const [newTask, setNewTask] = useState({
@@ -225,43 +187,75 @@ export default function DashboardPage() {
   const [showCreateStudySession, setShowCreateStudySession] = useState(false)
   const [showStudyTimer, setShowStudyTimer] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const [taskFilter, setTaskFilter] = useState("all") // all, pending, completed, overdue
-  const { subjects, loading: subjectsLoading } = useSubjects()
+  // const [taskFilter, setTaskFilter] = useState("all") // all, pending, completed, overdue
+  const { subjects } = useSubjects()
+  
+  // Use the useProfile hook for user profile data
+  const { profile } = useProfile()
   
   // Use the useTestMarks hook for proper database integration
   const { 
-    testMarks, 
+    testMarks: dbTestMarks, 
     loading: testMarksLoading, 
-    error: testMarksError,
-    createTestMark,
-    updateTestMark,
-    deleteTestMark,
-    refreshTestMarks
+    error: testMarksError
   } = useTestMarks()
+
+  // Create a proper type for TestMark with subject relation
+  type TestMarkWithSubject = {
+    id: string
+    userId: string
+    subjectId: string
+    testName: string
+    testType: string
+    score: number
+    maxScore: number
+    testDate: Date
+    notes?: string | null
+    createdAt: Date
+    updatedAt: Date
+    mistakes?: string | null
+    subject?: {
+      id: string
+      name: string
+      color: string
+    }
+  }
+
+  // Use database test marks with proper typing
+  const testMarks: TestMarkWithSubject[] = dbTestMarks || []
   
   // Debug: Log test marks data to check database synchronization
   useEffect(() => {
-    console.log('🔍 Test Marks Debug:', {
-      testMarksCount: testMarks?.length || 0,
-      testMarks: testMarks?.map(t => ({
-        id: t.id,
-        title: t.title,
-        subjectName: t.subjectName,
-        marksObtained: t.marksObtained,
-        totalMarks: t.totalMarks,
-        percentage: t.percentage,
-        date: t.date
-      })),
-      loading: testMarksLoading,
-      error: testMarksError
-    })
-    
-    // Refresh test marks to ensure we have the latest data
-    if (!testMarksLoading && testMarks?.length === 0) {
-      console.log('🔄 Refreshing test marks to ensure database sync...')
-      refreshTestMarks()
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Test Marks Debug:', {
+        testMarksCount: testMarks?.length || 0,
+        testMarks: testMarks?.map(t => ({
+          id: t.id,
+          testName: t.testName,
+          score: t.score,
+          maxScore: t.maxScore,
+          subject: t.subject?.name || 'No Subject'
+        })),
+        loading: testMarksLoading,
+        error: testMarksError
+      })
     }
-  }, [testMarks, testMarksLoading, testMarksError, refreshTestMarks])
+    
+    // Only refresh if we have no test marks and we're not currently loading
+    if (!testMarksLoading && testMarks?.length === 0 && testMarksError === null) {
+      console.log('🔄 Refreshing test marks to ensure database sync...')
+      // Call the API directly instead of using refreshTestMarks to avoid infinite loops
+      fetch('/api/test-marks')
+        .then(response => response.json())
+        .then(data => {
+          // Update the test marks state directly
+          console.log('🔄 Test marks refreshed successfully')
+        })
+        .catch(err => {
+          console.error('❌ Failed to refresh test marks:', err)
+        })
+    }
+  }, [testMarks?.length, testMarksLoading, testMarksError]) // Removed refreshTestMarks dependency
   
   // Use the useStudySessions hook for proper database integration
   const { 
@@ -331,10 +325,9 @@ export default function DashboardPage() {
     currentYear: new Date().getFullYear()
   })
   
-  const setSelectedDate = (date: Date) => setDateState(prev => ({ ...prev, selected: date }))
   const setCurrentMonth = (month: number) => setDateState(prev => ({ ...prev, currentMonth: month }))
   const setCurrentYear = (year: number) => setDateState(prev => ({ ...prev, currentYear: year }))
-  const { selected: selectedDate, currentMonth, currentYear } = dateState
+  const { currentMonth, currentYear } = dateState
 
   // Use the new user settings hook
   const { getSetting, settings } = useUserSettings()
@@ -350,38 +343,29 @@ export default function DashboardPage() {
 
   // Helper function to get study goal from settings
   const getStudyGoal = () => {
-    const goal = getSetting('defaultStudyGoal') / 60 // Convert minutes to hours
-    console.log('🔧 Dashboard getStudyGoal called:', { 
-      rawSetting: getSetting('defaultStudyGoal'), 
-      convertedGoal: goal,
-      settingsLoaded: !!settings 
-    })
+    if (!settings) return 4 // Default to 4 hours if settings not loaded
+    const goal = (settings.defaultStudyGoal || 240) / 60 // Convert minutes to hours
     return goal
-  }
-
-  // Helper function to get break duration from settings
-  const getBreakDuration = () => {
-    return getSetting('breakDuration')
-  }
-
-  // Helper function to get reminder time from settings
-  const getReminderTime = () => {
-    return getSetting('reminderTime')
-  }
-
-  // Helper function to get preferred study time from settings
-  const getPreferredStudyTime = () => {
-    return getSetting('preferredStudyTime')
   }
 
   // Helper function to check if progress bars should be shown
   const shouldShowProgressBars = () => {
-    return getSetting('showProgressBars')
+    if (!settings) return true // Default to showing progress bars
+    return settings.showProgressBars ?? true
   }
 
-  // Helper function to check if compact mode is enabled
-  const isCompactMode = () => {
-    return getSetting('compactMode')
+
+
+  // Helper function to get break duration from settings
+  const getBreakDuration = () => {
+    if (!settings) return 5 // Default to 5 minutes
+    return settings.breakDuration || 5
+  }
+
+  // Helper function to get reminder time from settings
+  const getReminderTime = () => {
+    if (!settings) return "09:00" // Default to 9 AM
+    return settings.reminderTime || "09:00"
   }
 
   // Helper function to convert minutes to hours and minutes format
@@ -473,40 +457,7 @@ export default function DashboardPage() {
   // Optimized task management functions using functional updates
   // toggleTaskComplete is now provided by the useTasks hook
   
-  const updateTaskProgress = useCallback(async (taskId: string, progress: number) => {
-    try {
-      await updateTask(taskId, { progress })
-      
-      // Refresh tasks to ensure data consistency
-      await refreshTasks()
-      
-      console.log('✅ Task progress updated successfully')
-    } catch (error) {
-      console.error('Failed to update task progress:', error)
-    }
-  }, [updateTask])
 
-  const deleteTaskLocal = async (taskId: string) => {
-    try {
-      await deleteTask(taskId)
-      
-      // Refresh tasks to ensure data consistency
-      await refreshTasks()
-      
-      console.log('✅ Task deleted successfully')
-    } catch (error) {
-      console.error('❌ Failed to delete task:', error)
-    }
-  }
-
-  const addTimeToTask = useCallback((taskId: string, minutes: number) => {
-    // This function is no longer needed as tasks are managed by the database
-    // setTasks(prevTasks => 
-    //   prevTasks.map(task =>
-    //     task.id === taskId ? { ...task, timeSpent: (task.timeSpent || 0) + minutes } : task
-    //   )
-    // )
-  }, [])
 
   // Date picker helper functions
   const getMonthName = (month: number) => {
@@ -551,13 +502,13 @@ export default function DashboardPage() {
 
     if (session?.user) {
       setUser({
-        name: session.user.name || "User",
-        email: session.user.email || "",
-        university: "University of Technology",
-        program: "Computer Science",
-        year: 3,
-        avatar: "/placeholder-user.jpg",
-        bio: "Passionate student focused on software engineering and AI",
+        name: profile?.fullName || session.user.name || "User",
+        email: profile?.user?.email || session.user.email || "",
+        university: profile?.university || "University of Technology",
+        program: profile?.program || "Computer Science",
+        year: profile?.currentYear ? parseInt(profile.currentYear) : 3,
+        avatar: profile?.profilePicture || "/placeholder-user.jpg",
+        bio: profile?.bio || "Passionate student focused on software engineering and AI",
 
         badges: ["Academic Excellence", "Study Streak", "Top Performer"],
         isPrivate: false,
@@ -588,7 +539,27 @@ export default function DashboardPage() {
     }
 
     // Notifications are now managed by the database and don't need manual checking
-  }, [router, session, status])
+  }, [router, session, status, profile])
+
+  // Update user when profile changes
+  useEffect(() => {
+    if (session?.user && profile) {
+      setUser({
+        name: profile.fullName || session.user.name || "User",
+        email: profile.user?.email || session.user.email || "",
+        university: profile.university || "University of Technology",
+        program: profile.program || "Computer Science",
+        year: profile.currentYear ? parseInt(profile.currentYear) : 3,
+        avatar: profile.profilePicture || "/placeholder-user.jpg",
+        bio: profile.bio || "Passionate student focused on software engineering and AI",
+
+        badges: ["Academic Excellence", "Study Streak", "Top Performer"],
+        isPrivate: false,
+        currentStreak: 5,
+        totalStudyTime: 0
+      })
+    }
+  }, [profile, session?.user])
 
   // Persist dashboard section open state
   useEffect(() => {
@@ -748,11 +719,7 @@ export default function DashboardPage() {
     setMaterialsUsed(materialsUsed.filter((_, i) => i !== index))
   }
 
-  const removeTask = (taskId: string) => {
-    // This function is no longer needed as tasks are managed by the database
-    // const updatedTasks = tasks.filter((task) => task.id !== taskId)
-    // setTasks(updatedTasks)
-  }
+
 
   // Memoized calculations for better performance
   const todayStudyTime = useMemo(() => {
@@ -848,7 +815,7 @@ export default function DashboardPage() {
 
   const upcomingDeadlines = useMemo(() => {
     // Show all pending tasks, prioritizing those with due dates
-    const pendingTasks = adaptedTasks.filter(task => !task.completed)
+    const pendingTasks = adaptedTasks.filter(task => task.status !== 'completed')
     
     // Sort by priority: overdue first, then due soon, then no due date
     return pendingTasks.sort((a, b) => {
@@ -862,21 +829,24 @@ export default function DashboardPage() {
       if (!a.dueDate && b.dueDate) return 1
       
       // If neither has due date, sort by creation date (newest first)
-      return b.createdAt.getTime() - a.createdAt.getTime()
+      const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt)
+      const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt)
+      return bDate.getTime() - aDate.getTime()
     })
   }, [adaptedTasks])
 
   // Helper function for task overdue check
   const isTaskOverdue = (task: any) => {
-    if (!task.dueDate || task.completed) return false;
-    return isPast(task.dueDate) && !isToday(task.dueDate);
+    if (!task.dueDate || task.status === 'completed') return false;
+    const dueDate = task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate);
+    return isPast(dueDate) && !isToday(dueDate);
   };
 
   const taskStats = useMemo(() => {
-    const completed = adaptedTasks.filter((task) => task.completed).length
-    const pending = adaptedTasks.filter((task) => !task.completed).length
+    const completed = adaptedTasks.filter((task) => task.status === 'completed').length
+    const pending = adaptedTasks.filter((task) => task.status !== 'completed').length
     const overdue = adaptedTasks.filter((task) => isTaskOverdue(task)).length
-    const highPriority = adaptedTasks.filter((task) => !task.completed && task.priority === "high").length
+    const highPriority = adaptedTasks.filter((task) => task.status !== 'completed' && task.priority === "high").length
     
     return { completed, pending, overdue, highPriority }
   }, [adaptedTasks])
@@ -991,30 +961,13 @@ export default function DashboardPage() {
     return dailyData
   }, [studySessions, subjects])
 
-  // Unified task update function
-  const updateTaskLocal = useCallback(async (taskId: string, updates: any) => {
-    try {
-      await updateTask(taskId, updates)
-      
-      // Refresh tasks to ensure data consistency
-      await refreshTasks()
-      
-      // Notify other parts of the application about the task update
-      // triggerUpdate removed - no longer needed
-      
-      // Also trigger a general task refresh
-      // triggerUpdate removed - no longer needed
-      
-      console.log('✅ Task updated successfully')
-    } catch (error) {
-      console.error('❌ Failed to update task:', error)
-    }
-  }, [updateTask])
+
 
 
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: "/" })
+    // Simple logout - redirect to home page
+    router.push("/")
   }
 
   const timeOfDay = useTimeOfDay();
@@ -1043,18 +996,7 @@ export default function DashboardPage() {
     }
   }, [tasks])
 
-  // Handle task reordering (drag and drop)
-  const handleTaskReorder = useCallback((reorderedTasks: Task[]) => {
-    console.log('🔍 Task Reorder:', {
-      originalCount: tasks.length,
-      reorderedCount: reorderedTasks.length,
-      tasks: reorderedTasks.map(t => ({ id: t.id, title: t.title, priority: t.priority }))
-    })
-    
-    // TODO: In the future, we can add an API endpoint to save the new order
-    // For now, we'll just log the reordering
-    console.log('📝 Tasks reordered:', reorderedTasks)
-  }, [tasks])
+
 
   if (status === "loading" || !user) {
     return (
@@ -1064,46 +1006,7 @@ export default function DashboardPage() {
     )
   }
 
-  // Task filtering and sorting
-  const filteredTasks = tasks.filter(task => {
-    if (taskFilter === "pending") return task.status !== 'completed'
-    if (taskFilter === "completed") return task.status === 'completed'
-    if (taskFilter === "overdue") return isTaskOverdue(task)
-    return true
-  })
 
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    let comparison = 0
-    
-    switch (taskSort) {
-      case "dueDate":
-        if (!a.dueDate && !b.dueDate) comparison = 0
-        else if (!a.dueDate) comparison = 1
-        else if (!b.dueDate) comparison = -1
-        else {
-          // Ensure dueDate is a Date object before calling getTime()
-          const aDate = a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate)
-          const bDate = b.dueDate instanceof Date ? b.dueDate : new Date(b.dueDate)
-          comparison = aDate.getTime() - bDate.getTime()
-        }
-        break
-      case "priority":
-        const priorityOrder = { high: 3, medium: 2, low: 1 }
-        const aPriority = a.priority as 'high' | 'medium' | 'low'
-        const bPriority = b.priority as 'high' | 'medium' | 'low'
-        comparison = (priorityOrder[bPriority] || 0) - (priorityOrder[aPriority] || 0)
-        break
-      case "createdAt":
-        comparison = a.createdAt.getTime() - b.createdAt.getTime()
-        break
-    }
-    
-    return sortDirection === "asc" ? comparison : -comparison
-  })
-
-  const { completed: completedTasks, pending: pendingTasks, overdue: overdueTasks, highPriority: highPriorityTasks } = taskStats
-
-  const categories = Array.from(new Set(tasks.map(task => task.category).filter(Boolean)))
 
   return (
     <div className="min-h-screen bg-background">
@@ -1124,6 +1027,7 @@ export default function DashboardPage() {
           
           <div className="flex items-center space-x-1 sm:space-x-2">
             <NotificationCenter />
+            <OfflineStatus showDetails={true} />
             <ThemeToggle />
             <Link href="/settings">
               <Button variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 focus-ring">
@@ -1165,6 +1069,7 @@ export default function DashboardPage() {
               </h1>
               <p className="text-sm sm:text-caption">Welcome back to your study journey</p>
             </div>
+            
             
             <div className="relative">
               {/* Study Time Display with Enhanced Visual Appeal - Mobile Optimized */}
@@ -1639,59 +1544,56 @@ export default function DashboardPage() {
                         }
                       }
                       
-                      // Refresh tasks to ensure data consistency
+                      // Only refresh if tasks were actually deleted
                       await refreshTasks()
-                      
-                      // Notify other parts of the application about the task deletion
-                      // triggerUpdate removed - no longer needed
                     }
                     
                     // Check if any tasks were completed/uncompleted
                     const completionChanges = updatedTasks.filter(updatedTask => {
                       const originalTask = adaptedTasks.find(t => t.id === updatedTask.id)
-                      const hasChanged = originalTask && originalTask.completed !== updatedTask.completed
+                      const hasStatusChanged = originalTask && originalTask.status !== updatedTask.status
                       
-                      if (hasChanged) {
+                      if (hasStatusChanged) {
                         console.log('🔍 Task completion change detected:', {
                           taskId: updatedTask.id,
                           taskTitle: updatedTask.title,
-                          originalCompleted: originalTask?.completed,
-                          newCompleted: updatedTask.completed,
-                          originalStatus: tasks.find(t => t.id === updatedTask.id)?.status,
-                          newStatus: updatedTask.completed ? 'completed' : 'pending'
+                          originalStatus: originalTask?.status,
+                          newStatus: updatedTask.status
                         })
                       }
                       
-                      return hasChanged
+                      return hasStatusChanged
                     })
                     
                     if (completionChanges.length > 0) {
                       console.log('🔍 Task completion changes detected:', completionChanges.map(t => ({
                         id: t.id,
                         title: t.title,
-                        completed: t.completed
+                        status: t.status
                       })))
                       
                       // Update task completion status in database
                       for (const changedTask of completionChanges) {
                         try {
-                          console.log('🔄 Updating task completion for:', changedTask.id, 'to:', changedTask.completed)
+                          console.log('🔄 Updating task completion for:', changedTask.id, 'to:', changedTask.status)
                           console.log('🔄 Task details:', {
                             id: changedTask.id,
                             title: changedTask.title,
-                            completed: changedTask.completed,
-                            status: changedTask.completed ? 'completed' : 'pending'
+                            status: changedTask.status
                           })
                           
-                          await toggleTaskComplete(changedTask.id)
+                          await updateTask(changedTask.id, {
+                            status: changedTask.status
+                          })
                           console.log('✅ Task completion status updated for:', changedTask.id)
-                          
-                          // Refresh tasks to ensure data consistency
-                          await refreshTasks()
                         } catch (error) {
                           console.error('❌ Failed to update task completion:', error)
                         }
                       }
+                      
+                      // Refresh tasks to get the updated data and trigger UI re-render
+                      // This will make the tick mark appear after the database update
+                      await refreshTasks()
                     }
                     
                     // Check if tasks were reordered by comparing the order of task IDs
@@ -1725,21 +1627,85 @@ export default function DashboardPage() {
                         if (response.ok) {
                           console.log('✅ Task order saved successfully')
                           
-                          // Refresh tasks to ensure data consistency
+                          // Refresh tasks after successful database update
+                          // This ensures the UI reflects the new order from the database
                           await refreshTasks()
                           
-                          // Notify other parts of the application about the task reordering
-                          triggerUpdate("task-reordered", { 
+                          // Log task reordering for debugging
+                          console.log('🔄 Tasks reordered successfully:', { 
                             tasks: updatedTasks.map(t => ({ id: t.id, title: t.title }))
                           })
                         } else {
                           console.error('❌ Failed to save task order')
+                          // If saving failed, refresh to restore original order
+                          await refreshTasks()
                         }
                       } catch (error) {
                         console.error('❌ Error saving task order:', error)
+                        // If there was an error, refresh to restore original order
+                        await refreshTasks()
                       }
                     } else {
                       console.log('🔍 No reordering detected - tasks are in the same order')
+                    }
+                  }}
+                  onTaskCreate={async (taskData: any) => {
+                    try {
+                      await createTask({
+                        title: taskData.title,
+                        description: taskData.description || '',
+                        subjectId: taskData.subjectId || null,
+                        priority: taskData.priority || 'medium',
+                        status: taskData.status || 'pending',
+                        dueDate: taskData.dueDate ? new Date(taskData.dueDate).toISOString() : undefined,
+                        progress: taskData.progress || 0,
+                        timeSpent: taskData.timeSpent || 0
+                      })
+                      await refreshTasks()
+                    } catch (error) {
+                      console.error('Failed to create task:', error)
+                    }
+                  }}
+                  onTaskUpdate={async (taskId: string, updates: any) => {
+                    try {
+                      await updateTask(taskId, {
+                        title: updates.title,
+                        description: updates.description || '',
+                        subjectId: updates.subjectId || null,
+                        priority: updates.priority || 'medium',
+                        status: updates.status || 'pending',
+                        dueDate: updates.dueDate ? new Date(updates.dueDate).toISOString() : undefined,
+                        progress: updates.progress || 0,
+                        timeSpent: updates.timeSpent || 0
+                      })
+                      await refreshTasks()
+                    } catch (error) {
+                      console.error('Failed to update task:', error)
+                    }
+                  }}
+                  onTaskDelete={async (taskId: string) => {
+                    try {
+                      await deleteTask(taskId)
+                      await refreshTasks()
+                    } catch (error) {
+                      console.error('Failed to delete task:', error)
+                    }
+                  }}
+                  onTaskReorder={async (taskIds: string[]) => {
+                    try {
+                      const response = await fetch('/api/tasks', {
+                        method: 'PATCH',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ tasks: taskIds.map((id, index) => ({ id, order: index })) }),
+                      })
+                      
+                      if (response.ok) {
+                        await refreshTasks()
+                      }
+                    } catch (error) {
+                      console.error('Failed to reorder tasks:', error)
                     }
                   }}
                   onOpenCreateDialog={() => setShowCreateTask(true)}

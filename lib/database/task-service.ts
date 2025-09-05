@@ -1,5 +1,5 @@
 import { dbService } from './database-service'
-import { Task, Prisma } from '@prisma/client'
+import { Task } from '@prisma/client'
 
 export interface CreateTaskData {
   title: string
@@ -89,7 +89,7 @@ export class TaskService {
           dueDate: data.dueDate,
           subjectId: data.subjectId,
           estimatedTime: data.estimatedTime || 0,
-          tags: data.tags || [],
+          tags: data.tags ? data.tags.join(', ') : '',
           progress: data.progress || 0,
           timeSpent: data.timeSpent || 0
         }
@@ -103,7 +103,7 @@ export class TaskService {
   // Update an existing task
   async updateTask(taskId: string, data: UpdateTaskData): Promise<Task> {
     try {
-      const updateData: any = {
+      const updateData: Partial<UpdateTaskData> & { updatedAt: Date } = {
         title: data.title,
         description: data.description,
         priority: data.priority,
@@ -121,12 +121,17 @@ export class TaskService {
       if (data.status === 'completed' && !data.completedAt) {
         updateData.completedAt = new Date()
       } else if (data.status !== 'completed') {
-        updateData.completedAt = null
+        updateData.completedAt = undefined
       }
+
+      // Filter out undefined values
+      const filteredData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== undefined)
+      )
 
       return await this.prisma.task.update({
         where: { id: taskId },
-        data: updateData
+        data: filteredData
       })
     } catch (error) {
       console.error('Failed to update task:', error)
@@ -211,11 +216,11 @@ export class TaskService {
     try {
       return await this.prisma.task.findMany({
         where: {
-          userId: userId,
+          userId,
           OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { description: { contains: query, mode: 'insensitive' } },
-            { tags: { hasSome: [query] } }
+            { title: { contains: query } },
+            { description: { contains: query } },
+            { tags: { contains: query } }
           ]
         },
         include: {
@@ -224,7 +229,7 @@ export class TaskService {
         orderBy: { createdAt: 'desc' }
       })
     } catch (error) {
-      console.error('Failed to search tasks:', error)
+      console.error('Error searching tasks:', error)
       throw new Error('Failed to search tasks')
     }
   }

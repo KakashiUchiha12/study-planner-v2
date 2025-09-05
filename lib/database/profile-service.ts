@@ -1,9 +1,10 @@
-import { PrismaClient, UserProfile } from '@prisma/client'
+import { PrismaClient, UserProfile, User } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
 export interface CreateProfileData {
   fullName: string
+  email?: string
   university?: string
   program?: string
   currentYear?: string
@@ -22,10 +23,13 @@ export class ProfileService {
   /**
    * Get user profile by user ID
    */
-  async getUserProfile(userId: string): Promise<UserProfile | null> {
+  async getUserProfile(userId: string): Promise<(UserProfile & { user: User }) | null> {
     try {
       return await prisma.userProfile.findUnique({
-        where: { userId }
+        where: { userId },
+        include: {
+          user: true
+        }
       })
     } catch (error) {
       console.error('Error fetching user profile:', error)
@@ -38,12 +42,23 @@ export class ProfileService {
    */
   async upsertUserProfile(userId: string, data: CreateProfileData): Promise<UserProfile> {
     try {
+      // Handle email update separately since it's in the User model
+      if (data.email) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { email: data.email }
+        })
+      }
+
+      // Remove email from profile data since it's not in UserProfile
+      const { email, ...profileData } = data
+
       return await prisma.userProfile.upsert({
         where: { userId },
-        update: data,
+        update: profileData,
         create: {
           userId,
-          ...data
+          ...profileData
         }
       })
     } catch (error) {
@@ -59,14 +74,25 @@ export class ProfileService {
     try {
       console.log('ProfileService: Updating profile for user:', userId, 'with data:', data)
       
+      // Handle email update separately since it's in the User model
+      if (data.email) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { email: data.email }
+        })
+      }
+
+      // Remove email from profile data since it's not in UserProfile
+      const { email, ...profileData } = data
+      
       // Use upsert to create profile if it doesn't exist
       const result = await prisma.userProfile.upsert({
         where: { userId },
-        update: data,
+        update: profileData,
         create: {
           userId,
-          fullName: data.fullName || 'Student Name',
-          ...data
+          fullName: profileData.fullName || 'Student Name',
+          ...profileData
         }
       })
       

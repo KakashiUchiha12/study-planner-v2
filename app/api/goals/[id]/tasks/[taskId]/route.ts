@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { goalService } from '@/lib/database'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 
 export async function PUT(
@@ -9,14 +9,14 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const { id: goalId, taskId } = await params
+    const { taskId } = await params
     const body = await request.json()
     
     // Convert dueDate string to Date object if present
@@ -41,7 +41,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -66,7 +66,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user || !(session.user as any).id) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

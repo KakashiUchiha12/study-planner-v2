@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/hooks/use-session-simple'
 import { useSubjects } from '@/hooks/useSubjects'
 
 export default function DebugPage() {
@@ -12,7 +12,15 @@ export default function DebugPage() {
       const result = await createSubject({
         name: 'Test Subject',
         color: '#FF0000',
-        description: 'Test Description'
+        description: 'Test Description',
+        code: 'TEST101',
+        credits: 3,
+        instructor: 'Test Instructor',
+        totalChapters: 10,
+        completedChapters: 0,
+        progress: 0,
+        assignmentsDue: 0,
+        nextExam: null
       })
       console.log('Subject created:', result)
     } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { fileService } from '@/lib/database/file-service'
 import { readFile } from 'fs/promises'
@@ -55,7 +55,7 @@ export async function GET(
     headers.set('Content-Type', 'image/png') // Thumbnails are saved as PNG
     headers.set('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
     
-    return new NextResponse(thumbnailBuffer as any, {
+          return new NextResponse(new Uint8Array(thumbnailBuffer), {
       status: 200,
       headers
     })

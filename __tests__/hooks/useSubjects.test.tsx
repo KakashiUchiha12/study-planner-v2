@@ -36,14 +36,15 @@ describe('useSubjects Hook', () => {
 
     // Mock successful session by default
     mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: 'test-user-123',
-          email: 'test@example.com',
-          name: 'Test User',
+              data: {
+          user: {
+            name: 'Test User',
+            email: 'test@example.com'
+          },
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         },
-      },
       status: 'authenticated',
+      update: jest.fn()
     })
   })
 
@@ -131,6 +132,7 @@ describe('useSubjects Hook', () => {
       mockUseSession.mockReturnValue({
         data: null,
         status: 'unauthenticated',
+        update: jest.fn()
       })
 
       const { result } = renderHook(() => useSubjects())
@@ -147,6 +149,7 @@ describe('useSubjects Hook', () => {
       mockUseSession.mockReturnValue({
         data: null,
         status: 'loading',
+        update: jest.fn()
       })
 
       const { result } = renderHook(() => useSubjects())
@@ -195,6 +198,14 @@ describe('useSubjects Hook', () => {
           name: 'Chemistry',
           color: '#0000FF',
           description: 'Organic Chemistry',
+          code: 'CHEM101',
+          credits: 3,
+          instructor: 'Dr. Smith',
+          totalChapters: 12,
+          completedChapters: 0,
+          progress: 0,
+          assignmentsDue: 5,
+          nextExam: null
         })
       })
 
@@ -239,8 +250,17 @@ describe('useSubjects Hook', () => {
           await result.current.createSubject({
             name: 'Chemistry',
             color: '#0000FF',
+            description: 'Chemistry Course',
+            code: 'CHEM101',
+            credits: 3,
+            instructor: 'Dr. Smith',
+            totalChapters: 12,
+            completedChapters: 0,
+            progress: 0,
+            assignmentsDue: 5,
+            nextExam: null
           })
-        } catch (error) {
+        } catch (error: any) {
           expect(error.message).toBe('Authentication required. Please log in.')
         }
       })
@@ -252,6 +272,7 @@ describe('useSubjects Hook', () => {
       mockUseSession.mockReturnValue({
         data: null,
         status: 'unauthenticated',
+        update: jest.fn()
       })
 
       const { result } = renderHook(() => useSubjects())
@@ -265,8 +286,17 @@ describe('useSubjects Hook', () => {
           await result.current.createSubject({
             name: 'Chemistry',
             color: '#0000FF',
+            description: 'Chemistry Course',
+            code: 'CHEM101',
+            credits: 3,
+            instructor: 'Dr. Smith',
+            totalChapters: 12,
+            completedChapters: 0,
+            progress: 0,
+            assignmentsDue: 5,
+            nextExam: null
           })
-        } catch (error) {
+        } catch (error: any) {
           expect(error.message).toBe('User not authenticated')
         }
       })
@@ -422,7 +452,7 @@ describe('useSubjects Hook', () => {
       })
 
       expect(searchResults).toHaveLength(1)
-      expect(searchResults[0].name).toBe('Mathematics')
+      expect((searchResults as any)?.[0]?.name).toBe('Mathematics')
     })
 
     it('returns empty array for empty search query', async () => {

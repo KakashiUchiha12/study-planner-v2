@@ -270,19 +270,19 @@ export class SkillService {
       })
 
       if (!skill || skill.objectives.length === 0) {
-        return skill?.currentLevel || 1
+        return 1
       }
 
       const completedObjectives = skill.objectives.filter(obj => obj.completed).length
       const calculatedLevel = Math.min(
         10, 
-        Math.round((completedObjectives / skill.objectives.length) * skill.targetLevel)
+        Math.round((completedObjectives / skill.objectives.length) * 5)
       )
       
       // Update the skill level
       await prisma.skill.update({
         where: { id: skillId },
-        data: { currentLevel: calculatedLevel }
+        data: { }
       })
 
       return calculatedLevel

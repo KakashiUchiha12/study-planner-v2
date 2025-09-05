@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { Task } from '@prisma/client'
 
 export function useTasks() {
@@ -9,7 +9,7 @@ export function useTasks() {
   const [error, setError] = useState<string | null>(null)
 
   // Get user ID from session
-  const userId = (session?.user as any)?.id || 'demo-user-1'
+  const userId = (session?.user as any)?.id
 
   // Load tasks from API
   const loadTasks = useCallback(async (filters?: {
@@ -332,6 +332,39 @@ export function useTasks() {
     }
   }, [userId, tasks])
 
+  // Reorder tasks
+  const reorderTasks = useCallback(async (taskIds: string[]) => {
+    if (!userId) throw new Error('User not authenticated')
+
+    try {
+      setError(null)
+      const response = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tasks: taskIds.map((id, index) => ({ id, order: index })) }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to reorder tasks')
+      }
+      
+      // Update local state with new order
+      const reorderedTasks = taskIds.map(id => tasks.find(t => t.id === id)).filter(Boolean) as Task[]
+      setTasks(prev => {
+        const otherTasks = prev.filter(t => !taskIds.includes(t.id))
+        return [...reorderedTasks, ...otherTasks]
+      })
+      
+      return await response.json()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to reorder tasks'
+      setError(errorMessage)
+      throw new Error(errorMessage)
+    }
+  }, [userId, tasks])
+
   // Refresh tasks
   const refreshTasks = useCallback(() => {
     loadTasks()
@@ -363,6 +396,7 @@ export function useTasks() {
     searchTasks,
     getTasksBySubject,
     getOverdueTasks,
-    refreshTasks
+    refreshTasks,
+    reorderTasks
   }
 }

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyPlanner - PWA Installer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .installer-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .install-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .install-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .install-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .features {
+            margin-top: 30px;
+            text-align: left;
+        }
+        
+        .feature {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            color: #555;
+        }
+        
+        .feature-icon {
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+        
+        .manual-install {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: left;
+        }
+        
+        .manual-install h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .manual-install ol {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .manual-install li {
+            margin: 5px 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="installer-container">
+        <div class="logo">📚</div>
+        <h1>StudyPlanner</h1>
+        <p class="subtitle">Your Personal Study Management App</p>
+        
+        <button id="installButton" class="install-button">
+            📱 Install StudyPlanner
+        </button>
+        
+        <div id="status" class="status hidden"></div>
+        
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Works offline - no internet required</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Desktop app experience</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Automatic data sync when online</span>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <span>Local file storage</span>
+            </div>
+        </div>
+        
+        <div class="manual-install">
+            <h3>Desktop Installation Instructions:</h3>
+            <div style="margin-bottom: 20px;">
+                <h4>🖥️ For Desktop (Chrome/Edge):</h4>
+                <ol>
+                    <li>Look for the <strong>install icon</strong> (⊕) in the address bar</li>
+                    <li>Or click the <strong>three dots menu</strong> (⋮) → "Install StudyPlanner"</li>
+                    <li>Or press <strong>F12</strong> → Application tab → Manifest → "Add to homescreen"</li>
+                </ol>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <h4>🦊 For Firefox:</h4>
+                <ol>
+                    <li>Click the <strong>three dots menu</strong> (⋮) in the address bar</li>
+                    <li>Select <strong>"Install"</strong> or <strong>"Add to Home Screen"</strong></li>
+                </ol>
+            </div>
+            <div>
+                <h4>📱 For Mobile:</h4>
+                <ol>
+                    <li><strong>iOS:</strong> Tap Share button → "Add to Home Screen"</li>
+                    <li><strong>Android:</strong> Tap the three dots menu → "Add to Home screen"</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let deferredPrompt;
+        const installButton = document.getElementById('installButton');
+        const status = document.getElementById('status');
+
+        // Check if already installed
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            showStatus('StudyPlanner is already installed!', 'success');
+            installButton.textContent = '✅ Already Installed';
+            installButton.disabled = true;
+        }
+
+        // Listen for the beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA install prompt triggered');
+            e.preventDefault();
+            deferredPrompt = e;
+            installButton.style.display = 'inline-flex';
+        });
+
+        // Handle install button click
+        installButton.addEventListener('click', async () => {
+            if (!deferredPrompt) {
+                showStatus('Install prompt not available. Try manual installation below.', 'info');
+                return;
+            }
+
+            try {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredPrompt.userChoice;
+                
+                if (outcome === 'accepted') {
+                    showStatus('StudyPlanner is being installed...', 'success');
+                    installButton.textContent = '✅ Installing...';
+                    installButton.disabled = true;
+                } else {
+                    showStatus('Installation cancelled. You can try again anytime.', 'info');
+                }
+                
+                // Clear the deferredPrompt
+                deferredPrompt = null;
+            } catch (error) {
+                console.error('Installation error:', error);
+                showStatus('Installation failed. Try manual installation below.', 'error');
+            }
+        });
+
+        // Listen for successful installation
+        window.addEventListener('appinstalled', () => {
+            showStatus('StudyPlanner has been successfully installed!', 'success');
+            installButton.textContent = '✅ Installed Successfully';
+            installButton.disabled = true;
+        });
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.classList.remove('hidden');
+        }
+
+        // Check PWA requirements
+        function checkPWARequirements() {
+            const requirements = {
+                manifest: !!document.querySelector('link[rel="manifest"]'),
+                serviceWorker: 'serviceWorker' in navigator,
+                https: location.protocol === 'https:' || location.hostname === 'localhost',
+                isDesktop: window.innerWidth > 768
+            };
+
+            console.log('PWA Requirements:', requirements);
+            
+            if (!requirements.manifest) {
+                showStatus('Manifest not found. Make sure you\'re on the StudyPlanner app.', 'error');
+            } else if (!requirements.serviceWorker) {
+                showStatus('Service Worker not supported in this browser.', 'error');
+            } else if (!requirements.https) {
+                showStatus('PWA requires HTTPS or localhost.', 'error');
+            } else if (requirements.isDesktop) {
+                showStatus('Desktop detected! Look for the install icon (⊕) in your address bar.', 'info');
+            } else {
+                showStatus('PWA requirements met. Ready for installation!', 'success');
+            }
+        }
+
+        // Check if we're on desktop and show specific instructions
+        function showDesktopInstructions() {
+            if (window.innerWidth > 768) {
+                const desktopInfo = document.createElement('div');
+                desktopInfo.className = 'status info';
+                desktopInfo.innerHTML = `
+                    <strong>Desktop Installation:</strong><br>
+                    • Look for the <strong>install icon (⊕)</strong> in your address bar<br>
+                    • Or use the three dots menu (⋮) → "Install StudyPlanner"<br>
+                    • The app will appear in your Start Menu/Applications
+                `;
+                document.querySelector('.installer-container').insertBefore(desktopInfo, document.querySelector('.features'));
+            }
+        }
+
+        // Check requirements on load
+        window.addEventListener('load', () => {
+            checkPWARequirements();
+            showDesktopInstructions();
+        });
+    </script>
+</body>
+</html>

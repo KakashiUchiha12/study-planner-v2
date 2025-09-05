@@ -26,7 +26,7 @@ import {
   Clock
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { FileCategory } from '@prisma/client'
+// FileCategory removed as it's not exported from Prisma
 
 interface SubjectFile {
   id: string
@@ -35,7 +35,7 @@ interface SubjectFile {
   fileType: string
   mimeType: string
   fileSize: number
-  category: FileCategory
+  category: string
   tags: string[]
   description?: string
   isPublic: boolean
@@ -69,7 +69,7 @@ export function FileUpload({ subjectId, onFileUploaded, onFileDeleted }: FileUpl
   // Form state for upload
   const [uploadForm, setUploadForm] = useState({
     file: null as File | null,
-    category: 'OTHER' as FileCategory,
+    category: 'OTHER',
     tags: [] as string[],
     description: '',
     isPublic: false
@@ -78,7 +78,7 @@ export function FileUpload({ subjectId, onFileUploaded, onFileDeleted }: FileUpl
   // Form state for edit
   const [editForm, setEditForm] = useState({
     fileName: '',
-    category: 'OTHER' as FileCategory,
+    category: 'OTHER',
     tags: [] as string[],
     description: '',
     isPublic: false
@@ -301,8 +301,8 @@ export function FileUpload({ subjectId, onFileUploaded, onFileDeleted }: FileUpl
   })
 
   // Get file icon based on category
-  const getFileIcon = (category: FileCategory) => {
-    const icons: Record<FileCategory, string> = {
+  const getFileIcon = (category: string) => {
+    const icons: Record<string, string> = {
       PDF: '📄',
       DOCUMENT: '📝',
       IMAGE: '🖼️',
@@ -531,7 +531,7 @@ export function FileUpload({ subjectId, onFileUploaded, onFileDeleted }: FileUpl
             {/* Category */}
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select value={uploadForm.category} onValueChange={(value) => setUploadForm(prev => ({ ...prev, category: value as FileCategory }))}>
+              <Select value={uploadForm.category} onValueChange={(value) => setUploadForm(prev => ({ ...prev, category: value }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -645,7 +645,7 @@ export function FileUpload({ subjectId, onFileUploaded, onFileDeleted }: FileUpl
             {/* Category */}
             <div className="space-y-2">
               <Label htmlFor="editCategory">Category</Label>
-              <Select value={editForm.category} onValueChange={(value) => setEditForm(prev => ({ ...prev, category: value as FileCategory }))}>
+              <Select value={editForm.category} onValueChange={(value) => setEditForm(prev => ({ ...prev, category: value }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

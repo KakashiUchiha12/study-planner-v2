@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/hooks/use-session-simple"
 import { useRouter } from "next/navigation"
 import { useUserSettings } from "@/hooks/useUserSettings"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -145,7 +145,7 @@ export default function SettingsPage() {
         })
       }
     }
-  }, [localSettings.studyGoals.dailyHours, localSettings.studyGoals.autoCalculate])
+  }, [localSettings.studyGoals.dailyHours, localSettings.studyGoals.autoCalculate, localSettings.studyGoals])
 
   const saveSettingsToDatabase = async (newSettings: Partial<LegacyUserSettings>) => {
     const updatedLocalSettings = { ...localSettings, ...newSettings }

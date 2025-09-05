@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { fileService } from '@/lib/database/file-service'
 import { writeFile, mkdir } from 'fs/promises'
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       mimeType: file.type,
       fileSize: file.size,
       filePath,
-      thumbnailPath,
+      thumbnailPath: thumbnailPath || undefined,
       category: category as any || fileService.getFileCategoryFromMimeType(file.type),
       tags: parsedTags,
       description: description || undefined,

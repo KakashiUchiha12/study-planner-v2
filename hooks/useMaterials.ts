@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { Material, CreateMaterialData, UpdateMaterialData } from '@/lib/database'
 import { notifyDataUpdate } from '@/lib/data-sync'
 import { useRouter } from 'next/navigation'

@@ -61,7 +61,12 @@ export class CalendarEventService {
    */
   async createCalendarEvent(userId: string, data: CreateCalendarEventData): Promise<CalendarEvent> {
     try {
-      return await prisma.calendarEvent.create({
+      console.log('📅 CalendarEventService: Creating event for user:', userId)
+      console.log('📅 CalendarEventService: Event data:', data)
+      console.log('📅 CalendarEventService: Start date type:', typeof data.start, 'value:', data.start)
+      console.log('📅 CalendarEventService: End date type:', typeof data.end, 'value:', data.end)
+      
+      const result = await prisma.calendarEvent.create({
         data: {
           ...data,
           userId,
@@ -70,9 +75,17 @@ export class CalendarEventService {
           notificationTime: data.notificationTime ?? 15
         }
       })
+      
+      console.log('📅 CalendarEventService: Event created successfully:', result)
+      return result
     } catch (error) {
-      console.error('Error creating calendar event:', error)
-      throw new Error('Failed to create calendar event')
+      console.error('📅 CalendarEventService: Error creating calendar event:', error)
+      console.error('📅 CalendarEventService: Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'Unknown'
+      })
+      throw new Error(`Failed to create calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

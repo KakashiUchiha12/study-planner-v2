@@ -16,10 +16,20 @@ import {
 } from "lucide-react"
 
 // Import PDF.js
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js'
+// PDF.js will be loaded dynamically when needed
+let pdfjsLib: any = null;
 
-// Set the worker source for PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`
+// Try to load PDF.js from CDN
+if (typeof window !== 'undefined') {
+  try {
+    if ((window as any).pdfjsLib) {
+      pdfjsLib = (window as any).pdfjsLib;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+    }
+  } catch (error) {
+    console.log('PDF.js not available, will use fallback preview');
+  }
+}
 
 interface FilePreviewProps {
   file: {
@@ -681,6 +691,11 @@ function PDFViewer({ url }: { url: string }) {
     try {
       setIsLoading(true)
       setError(null)
+      
+      // Check if PDF.js is available
+      if (!pdfjsLib) {
+        throw new Error('PDF.js library not available');
+      }
       
       // Load the PDF document
       const loadingTask = pdfjsLib.getDocument(url)

@@ -14,6 +14,7 @@ export { goalService } from './goal-service'
 export { skillService } from './skill-service'
 export { documentService } from './document-service'
 export { calendarEventService } from './calendar-event-service'
+export { userActivityService } from './user-activity-service'
 
 // Types and Interfaces
 export type { CreateSubjectData, UpdateSubjectData } from './subject-service'

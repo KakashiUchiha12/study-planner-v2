@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from '@/lib/auth'
 import { authOptions } from '@/lib/auth'
 import { dbService } from '@/lib/database'
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    let userId = session?.user?.id
+    let userId = (session?.user as any)?.id
 
     // If no session, use demo user ID
     if (!userId) {
@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    let userId = session?.user?.id
+    let userId = (session?.user as any)?.id
 
     // If no session, use demo user ID
     if (!userId) {

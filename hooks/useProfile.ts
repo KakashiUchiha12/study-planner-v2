@@ -1,9 +1,27 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 import { UserProfile, CreateProfileData, UpdateProfileData } from '@/lib/database'
 
+// Extended interface to include user data
+interface UserProfileWithUser extends UserProfile {
+  user: {
+    id: string
+    name: string
+    email: string
+    image?: string | null
+  }
+}
+
+// Extended session user interface
+interface ExtendedUser {
+  id: string
+  name?: string | null
+  email?: string | null
+  image?: string | null
+}
+
 interface UseProfileReturn {
-  profile: UserProfile | null
+  profile: UserProfileWithUser | null
   loading: boolean
   error: string | null
   createProfile: (data: CreateProfileData) => Promise<void>
@@ -14,13 +32,19 @@ interface UseProfileReturn {
 
 export function useProfile(): UseProfileReturn {
   const { data: session, status } = useSession()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfileWithUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchProfile = useCallback(async () => {
     // Only fetch if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !session?.user) {
+      setLoading(false)
+      return
+    }
+
+    const user = session.user as ExtendedUser
+    if (!user.id) {
       setLoading(false)
       return
     }
@@ -50,11 +74,16 @@ export function useProfile(): UseProfileReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [status, (session?.user as ExtendedUser)?.id])
 
   const createProfile = useCallback(async (data: CreateProfileData) => {
     // Only create if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !session?.user) {
+      throw new Error('User not authenticated')
+    }
+
+    const user = session.user as ExtendedUser
+    if (!user.id) {
       throw new Error('User not authenticated')
     }
 
@@ -84,11 +113,16 @@ export function useProfile(): UseProfileReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [session?.user, status])
 
   const updateProfile = useCallback(async (data: UpdateProfileData) => {
     // Only update if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !session?.user) {
+      throw new Error('User not authenticated')
+    }
+
+    const user = session.user as ExtendedUser
+    if (!user.id) {
       throw new Error('User not authenticated')
     }
 
@@ -118,11 +152,16 @@ export function useProfile(): UseProfileReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [session?.user, status])
 
   const deleteProfile = useCallback(async () => {
     // Only delete if user is authenticated
-    if (status !== 'authenticated' || !session?.user?.id) {
+    if (status !== 'authenticated' || !session?.user) {
+      throw new Error('User not authenticated')
+    }
+
+    const user = session.user as ExtendedUser
+    if (!user.id) {
       throw new Error('User not authenticated')
     }
 
@@ -147,15 +186,24 @@ export function useProfile(): UseProfileReturn {
     } finally {
       setLoading(false)
     }
-  }, [session?.user?.id, status])
+  }, [session?.user, status])
 
   const refreshProfile = useCallback(async () => {
-    await fetchProfile()
-  }, [fetchProfile])
+    if (status === 'authenticated' && session?.user) {
+      await fetchProfile()
+    }
+  }, [fetchProfile, status, session?.user])
 
+  // Only fetch profile when user authentication status changes
   useEffect(() => {
-    fetchProfile()
-  }, [fetchProfile])
+    if (status === 'authenticated' && session?.user) {
+      fetchProfile()
+    } else if (status === 'unauthenticated') {
+      setProfile(null)
+      setLoading(false)
+      setError(null)
+    }
+  }, [status, (session?.user as ExtendedUser)?.id]) // Only depend on status and user ID, not the entire session object
 
   return {
     profile,

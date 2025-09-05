@@ -19,28 +19,36 @@ import {
 } from '@dnd-kit/sortable'
 import { SortableGoalCard } from "./sortable-goal-card"
 
-interface GoalTask {
+export interface GoalTask {
   id: string
   title: string
-  priority: string
-  dueDate?: Date
+  description?: string | null
+  dueDate?: Date | null
+  priority: 'low' | 'medium' | 'high'
   completed: boolean
+  goalId: string
+  createdAt: Date
+  updatedAt: Date
 }
 
-interface Goal {
+export interface GoalCard {
   id: string
   title: string
   description: string
   category: string
   status: string
-  targetDate?: Date
+  targetDate: Date
   tasks: GoalTask[]
+  userId: string
+  order: number
+  createdAt: Date
+  updatedAt: Date
 }
 
 interface GoalsTabProps {
-  goals: Goal[]
+  goals: GoalCard[]
   onAddGoal: () => void
-  onEditGoal: (goal: Goal) => void
+  onEditGoal: (goal: GoalCard) => void
   onDeleteGoal: (goalId: string) => void
   onAddTask: (goalId: string) => void
   onEditTask: (task: GoalTask) => void
@@ -98,76 +106,69 @@ export function GoalsTab({
 
   return (
     <div className="space-y-6">
-      {/* Quick Actions */}
-      <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Target className="h-5 w-5 text-blue-600" />
-            Quick Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button 
-            onClick={onAddGoal}
-            className="bg-blue-600 hover:bg-blue-700 text-white h-8 md:h-10 text-xs md:text-sm px-3 md:px-4"
-          >
-            <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-            Add Goal
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Add Goal Section */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Target className="h-5 w-5 text-green-600" />
+          <h2 className="text-lg font-semibold text-slate-800">Add New Goal</h2>
+        </div>
+        <Button 
+          onClick={onAddGoal}
+          className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Goal
+        </Button>
+      </div>
 
       {/* Goals List */}
-      <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Target className="h-5 w-5 text-blue-600" />
-            Your Goals ({goals.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {goals.length > 0 ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleGoalsDragEnd}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+          <Target className="h-5 w-5 text-green-600" />
+          Your Goals ({goals.length})
+        </h3>
+        
+        {goals.length > 0 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleGoalsDragEnd}
+          >
+            <SortableContext
+              items={goals.map(g => g.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={goals.map(g => g.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-4">
-                  {goals.map((goal) => (
-                    <SortableGoalCard
-                      key={goal.id}
-                      goal={goal}
-                      onEdit={() => onEditGoal(goal)}
-                      onDelete={() => onDeleteGoal(goal.id)}
-                      onAddTask={() => onAddTask(goal.id)}
-                      onEditTask={onEditTask}
-                      onToggleTask={onToggleTask}
-                      onDeleteTask={onDeleteTask}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          ) : (
-            <div className="text-center py-8">
-              <Target className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-600 mb-2">No goals yet</h3>
-              <p className="text-slate-500 mb-4">Start by creating your first goal to track your progress</p>
-              <Button 
-                onClick={onAddGoal}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Goal
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <div className="space-y-4">
+                {goals.map((goal) => (
+                  <SortableGoalCard
+                    key={goal.id}
+                    goal={goal}
+                    onEdit={() => onEditGoal(goal)}
+                    onDelete={() => onDeleteGoal(goal.id)}
+                    onAddTask={() => onAddTask(goal.id)}
+                    onEditTask={onEditTask}
+                    onToggleTask={onToggleTask}
+                    onDeleteTask={onDeleteTask}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
+            <Target className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-600 mb-2">No goals yet</h3>
+            <p className="text-slate-500 mb-4">Start by adding your first goal to track your progress</p>
+            <Button 
+              onClick={onAddGoal}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Your First Goal
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

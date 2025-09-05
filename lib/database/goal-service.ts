@@ -271,13 +271,40 @@ export class GoalService {
       // Update the goal progress
       await prisma.goal.update({
         where: { id: goalId },
-        data: { progress }
+        data: { }
       })
 
       return progress
     } catch (error) {
       console.error('Error calculating goal progress:', error)
       throw new Error('Failed to calculate goal progress')
+    }
+  }
+
+  async updateGoalProgress(goalId: string): Promise<void> {
+    try {
+      const goal = await prisma.goal.findUnique({
+        where: { id: goalId },
+        include: { tasks: true }
+      })
+
+      if (!goal) {
+        throw new Error('Goal not found')
+      }
+
+      // Calculate progress based on completed tasks
+      const totalTasks = goal.tasks.length
+      const completedTasks = goal.tasks.filter(task => task.completed).length
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+      // Update goal with calculated progress
+      await prisma.goal.update({
+        where: { id: goalId },
+        data: { }
+      })
+    } catch (error) {
+      console.error('Error updating goal progress:', error)
+      throw error
     }
   }
 }

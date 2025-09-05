@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-utils'
 import { skillService } from '@/lib/database'
+import { getServerSession } from '@/lib/auth'
+import { authOptions } from '@/lib/auth'
 
 // POST /api/skills/[id]/objectives - Add a new objective to a skill
 export async function POST(
@@ -8,8 +9,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = await requireAuth()
-    const { id: skillId } = await params
+    const session = await getServerSession(authOptions)
+    if (!session?.user || !(session.user as any).id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const userId = (session.user as any).id
+    const { id } = await params
     const body = await request.json()
 
     // Validate required fields
@@ -21,22 +27,15 @@ export async function POST(
     }
 
     // Create the objective
-    const objective = await skillService.addSkillObjective(skillId, {
+    const objective = await skillService.addSkillObjective(id, {
       title: body.title,
-      description: body.description || null,
-      targetDate: body.targetDate ? new Date(body.targetDate) : null,
-      order: body.order || 0
+      description: body.description || undefined,
+      targetDate: body.targetDate ? new Date(body.targetDate) : undefined,
+      completed: body.completed || false
     })
 
     return NextResponse.json(objective)
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-    
     console.error('Error adding skill objective:', error)
     return NextResponse.json(
       { error: 'Failed to add skill objective' },
@@ -51,40 +50,31 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = await requireAuth()
-    const { id: skillId } = await params
+    const session = await getServerSession(authOptions)
+    if (!session?.user || !(session.user as any).id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const userId = (session.user as any).id
+    const { id } = await params
 
     // Get the skill with objectives
-    const skill = await skillService.getSkillById(skillId)
+    const skill = await skillService.getSkillById(id)
     
     if (!skill) {
-      return NextResponse.json(
-        { error: 'Skill not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
     }
 
     // Check if user owns this skill
     if (skill.userId !== userId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    return NextResponse.json(skill.objectives || [])
+    // Return the objectives from the skill
+    const skillWithObjectives = skill as any
+    return NextResponse.json(skillWithObjectives.objectives || [])
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-    
     console.error('Error fetching skill objectives:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch skill objectives' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

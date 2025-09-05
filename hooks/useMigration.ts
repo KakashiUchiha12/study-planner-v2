@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from './use-session-simple'
 
 export interface MigrationResult {
   success: boolean
@@ -10,7 +10,7 @@ export interface MigrationResult {
   testMarksMigrated: number
 }
 
-export function useMigration() {
+export const useMigration = () => {
   const { data: session } = useSession()
   const [migrating, setMigrating] = useState(false)
   const [migrationStatus, setMigrationStatus] = useState<{
@@ -20,7 +20,7 @@ export function useMigration() {
   } | null>(null)
 
   // Get user ID from session
-  const userId = session?.user?.id || 'demo-user-1'
+  const userId = (session?.user as any)?.id
 
   // Check if migration is needed
   const checkMigrationStatus = useCallback(async () => {

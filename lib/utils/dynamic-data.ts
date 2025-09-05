@@ -85,19 +85,19 @@ export const validateSubjectData = (subject: Partial<Subject>): boolean => {
 
 export const validateStudySessionData = (session: Partial<StudySession>): boolean => {
   return !!(
-    session.duration &&
-    session.duration > 0 &&
-    session.date
+    session.startTime &&
+    session.endTime &&
+    session.startTime
   )
 }
 
 export const validateTestMarkData = (test: Partial<TestMark>): boolean => {
   return !!(
     test.subjectId &&
-    test.marksObtained !== undefined && test.marksObtained >= 0 &&
-    test.totalMarks !== undefined && test.totalMarks > 0 &&
-    test.marksObtained !== undefined && test.totalMarks !== undefined && test.marksObtained <= test.totalMarks &&
-    test.date
+    test.score !== undefined && test.score >= 0 &&
+    test.maxScore !== undefined && test.maxScore > 0 &&
+    test.score !== undefined && test.maxScore !== undefined && test.score <= test.maxScore &&
+    test.testDate
   )
 }
 
@@ -117,53 +117,68 @@ export const getDefaultSubject = (name: string): Subject => ({
   credits: 3,
   instructor: 'TBD',
   color: generateSubjectColor(name),
-  progress: 0,
+  // progress: 0, // Removed as it doesn't exist in Subject type
   nextExam: undefined,
   assignmentsDue: 0,
-  materials: [],
-  topics: [],
+  // materials: [], // Removed as it doesn't exist in Subject type
+  // topics: [], // Removed as it doesn't exist in Subject type
   totalChapters: 0,
-  completedChapters: 0
+  completedChapters: 0,
+  totalMaterials: 0,
+  completedMaterials: 0,
+  totalFiles: 0,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  userId: 'demo-user-1'
 })
 
 export const getDefaultStudySession = (): StudySession => ({
   id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  date: new Date(),
-  duration: 0,
-  subject: '',
+  startTime: new Date(),
+  endTime: new Date(),
+  subjectId: '',
   efficiency: 5,
   sessionType: 'Focused Study',
   productivity: 3,
   notes: '',
-  topicsCovered: [],
-  materialsUsed: []
+  topicsCovered: null,
+  materialsUsed: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  userId: 'demo-user-1',
+  durationMinutes: 0
 })
 
 export const getDefaultTestMark = (): TestMark => ({
   id: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  date: new Date(),
-  subjectId: '',
-  subjectName: '',
-  marksObtained: 0,
-  totalMarks: 100,
-  title: '',
-  percentage: 0,
-  grade: 'F'
+  userId: 'demo-user-1',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  subjectId: 'demo-subject-1',
+  testDate: new Date(),
+  score: 85,
+  maxScore: 100,
+  testName: 'Sample Test',
+  testType: 'quiz',
+  mistakes: null
 })
 
 export const getDefaultTask = (): Task => ({
   id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   title: '',
   description: '',
-  subject: '',
-  completed: false,
+  subjectId: '',
+  status: 'pending',
   createdAt: new Date(),
   priority: 'medium',
   category: 'General',
   estimatedTime: 0,
-  tags: [],
+  tags: '',
   progress: 0,
-  timeSpent: 0
+  timeSpent: 0,
+  updatedAt: new Date(),
+  userId: 'demo-user-1',
+  order: 0
 })
 
 // Chart color utilities

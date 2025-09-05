@@ -16,9 +16,9 @@ export function UserSettings() {
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
-  const handleSettingChange = async <K extends keyof typeof settings>(
-    key: K,
-    value: typeof settings[K]
+  const handleSettingChange = async (
+    key: string,
+    value: any
   ) => {
     if (!settings) return
     
@@ -28,7 +28,7 @@ export function UserSettings() {
       console.log('🔧 handleSettingChange: Updating setting', { key, value, updatedSettings })
       
       // Update the database
-      await updateSetting(key, value)
+      await updateSetting(key as any, value)
       
       toast({
         title: "Setting updated",

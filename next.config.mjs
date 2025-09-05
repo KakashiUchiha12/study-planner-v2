@@ -4,12 +4,15 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   
+  // Standard Next.js configuration
+  
   // Image optimization
   images: {
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
+    unoptimized: false,
   },
   
   // Compiler optimizations
@@ -50,16 +53,42 @@ const nextConfig = {
     ];
   },
   
-  // Bundle analyzer (optional - uncomment for production analysis)
-  // webpack: (config, { isServer }) => {
-  //   if (!isServer) {
-  //     config.resolve.fallback = {
-  //       ...config.resolve.fallback,
-  //       fs: false,
-  //     };
-  //   }
-  //   return config;
-  // },
+  // Simplified webpack configuration
+  webpack: (config, { isServer, dev }) => {
+    console.log('🔧 Webpack: Starting configuration...', { isServer, dev });
+    
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
+        process: 'process/browser',
+      };
+    }
+
+    // In development, disable caching to avoid stale module issues
+    if (dev) {
+      config.cache = false;
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'named',
+        chunkIds: 'named',
+      };
+    }
+
+    console.log('🔧 Webpack: Configuration completed successfully');
+    return config;
+  },
 };
 
 export default nextConfig;
