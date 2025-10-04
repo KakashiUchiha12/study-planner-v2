@@ -1,8 +1,8 @@
-# StudyPlanner - Academic Success Management System
+# StudyHi - Welcome to Learning
 
 ## 🎯 Project Overview
 
-StudyPlanner is a comprehensive, full-stack web application designed to help students organize their academic life. It's built with modern web technologies and follows best practices for scalability, maintainability, and user experience.
+StudyHi is a comprehensive, full-stack web application designed to help students organize their academic life. It's built with modern web technologies and follows best practices for scalability, maintainability, and user experience.
 
 ## 🏗️ Architecture Overview
 
@@ -370,4 +370,4 @@ The application uses a relational database with the following core entities:
 
 ---
 
-This StudyPlanner application represents a comprehensive solution for academic management, built with modern web technologies and following industry best practices. It provides a robust foundation for educational technology applications while maintaining excellent user experience and developer productivity.
+This StudyHi application represents a comprehensive solution for academic management, built with modern web technologies and following industry best practices. It provides a robust foundation for educational technology applications while maintaining excellent user experience and developer productivity.

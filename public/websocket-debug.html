@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        button { padding: 10px 20px; margin: 5px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1976d2; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>🔌 WebSocket Debug Test</h1>
+    
+    <div>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <button id="sendPingBtn" onclick="sendPing()" disabled>Send Ping</button>
+        <button id="clearBtn" onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="status" class="log info">Not connected</div>
+    <div id="log"></div>
+    
+    <script>
+        let ws = null;
+        let connectionCount = 0;
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `log ${type}`;
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addLog('Already connected', 'info');
+                return;
+            }
+            
+            connectionCount++;
+            addLog(`Connection attempt #${connectionCount}`, 'info');
+            updateStatus('Connecting...', 'info');
+            
+            try {
+                ws = new WebSocket('ws://localhost:3000/api/ws');
+                
+                ws.onopen = function(event) {
+                    addLog('✅ Connected successfully', 'success');
+                    updateStatus('Connected', 'success');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('sendPingBtn').disabled = false;
+                };
+                
+                ws.onmessage = function(event) {
+                    addLog(`📨 Received: ${event.data}`, 'success');
+                };
+                
+                ws.onclose = function(event) {
+                    addLog(`❌ Disconnected - Code: ${event.code}, Reason: "${event.reason}", Clean: ${event.wasClean}`, 'error');
+                    updateStatus(`Disconnected (Code: ${event.code})`, 'error');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    document.getElementById('sendPingBtn').disabled = true;
+                    
+                    // Auto-reconnect after 2 seconds
+                    setTimeout(() => {
+                        if (!ws || ws.readyState === WebSocket.CLOSED) {
+                            addLog('🔄 Auto-reconnecting...', 'info');
+                            connect();
+                        }
+                    }, 2000);
+                };
+                
+                ws.onerror = function(error) {
+                    addLog(`❌ WebSocket Error: ${error}`, 'error');
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (error) {
+                addLog(`❌ Connection Error: ${error.message}`, 'error');
+                updateStatus('Connection failed', 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'User disconnected');
+                ws = null;
+            }
+        }
+        
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = JSON.stringify({ type: 'ping', timestamp: Date.now() });
+                ws.send(message);
+                addLog(`📤 Sent: ${message}`, 'info');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            addLog('🚀 WebSocket debug page loaded', 'info');
+            connect();
+        };
+    </script>
+</body>
+</html>

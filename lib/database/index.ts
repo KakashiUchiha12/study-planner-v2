@@ -15,6 +15,10 @@ export { skillService } from './skill-service'
 export { documentService } from './document-service'
 export { calendarEventService } from './calendar-event-service'
 export { userActivityService } from './user-activity-service'
+export { fileService } from './file-service'
+
+// Community Services
+export { communityService } from './community-service'
 
 // Types and Interfaces
 export type { CreateSubjectData, UpdateSubjectData } from './subject-service'
@@ -50,6 +54,12 @@ export type {
   CreateCalendarEventData, 
   UpdateCalendarEventData 
 } from './calendar-event-service'
+export type { 
+  Community,
+  CommunityMember,
+  CreateCommunityData,
+  UpdateCommunityData
+} from './community-service'
 
 // Re-export Prisma types for convenience
 export type { 

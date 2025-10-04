@@ -94,6 +94,7 @@ export function useDocuments(): UseDocumentsReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include session cookies
         body: JSON.stringify(data),
       })
       
@@ -122,6 +123,7 @@ export function useDocuments(): UseDocumentsReturn {
       
       const response = await fetch(`/api/documents/${documentId}`, {
         method: 'DELETE',
+        credentials: 'include', // Include session cookies
       })
       
       if (!response.ok) {
@@ -148,6 +150,7 @@ export function useDocuments(): UseDocumentsReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include session cookies
         body: JSON.stringify({ isPinned: true }), // We'll toggle based on current state
       })
       
@@ -177,6 +180,7 @@ export function useDocuments(): UseDocumentsReturn {
       const response = await fetch('/api/documents/reorder', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include session cookies
         body: JSON.stringify({ documentIds }),
       })
       

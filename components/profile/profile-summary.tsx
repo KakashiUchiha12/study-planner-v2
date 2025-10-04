@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Edit3, Camera, Save, X } from "lucide-react"
+import { MessageDialog } from "@/components/ui/message-dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImageCropper } from "@/components/ui/ImageCropper"
+import { Edit3, Camera, Save, X, Globe, Lock } from "lucide-react"
 
 export interface ProfileData {
   fullName: string
@@ -18,6 +21,8 @@ export interface ProfileData {
   gpa: string
   bio: string
   profilePicture?: string
+  banner?: string
+  visibility?: 'public' | 'private'
 }
 
 interface ProfileSummaryProps {
@@ -27,6 +32,7 @@ interface ProfileSummaryProps {
   onEditProfile: () => void
   onCloseEditProfile: () => void
   onProfilePictureUpload: (file: File) => Promise<void>
+  onBannerUpload: (file: File) => Promise<void>
   onUpdateProfile: (data: ProfileData) => Promise<void>
 }
 
@@ -36,12 +42,30 @@ export function ProfileSummary({
   editingProfile,
   onEditProfile,
   onCloseEditProfile,
-  onProfilePictureUpload, 
+  onProfilePictureUpload,
+  onBannerUpload,
   onUpdateProfile 
 }: ProfileSummaryProps) {
   const [editData, setEditData] = useState<ProfileData>(profileData)
   const [uploading, setUploading] = useState(false)
+  const [bannerUploading, setBannerUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
+  const [messageDialog, setMessageDialog] = useState<{
+    open: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+  }>({
+    open: false,
+    type: 'info',
+    title: '',
+    message: ''
+  })
+  const [showCropper, setShowCropper] = useState(false)
+  const [imageToCrop, setImageToCrop] = useState<string>('')
+  const [showBannerCropper, setShowBannerCropper] = useState(false)
+  const [bannerImageSrc, setBannerImageSrc] = useState<string>('')
 
   // Update editData when profileData changes
   useEffect(() => {
@@ -52,10 +76,20 @@ export function ProfileSummary({
     try {
       await onUpdateProfile(editData)
       onCloseEditProfile() // Close the modal
-      alert('Profile updated successfully!')
+      setMessageDialog({
+        open: true,
+        type: 'success',
+        title: 'Success',
+        message: 'Profile updated successfully!'
+      })
     } catch (error) {
       console.error('Failed to update profile:', error)
-      alert('Failed to update profile. Please try again.')
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to update profile. Please try again.'
+      })
     }
   }
 
@@ -68,21 +102,161 @@ export function ProfileSummary({
     const file = event.target.files?.[0]
     if (!file) return
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'Invalid File',
+        message: 'Please select an image file.'
+      })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'File Too Large',
+        message: 'Please select an image smaller than 5MB.'
+      })
+      return
+    }
+
+    // Create preview URL and show cropper
+    const previewUrl = URL.createObjectURL(file)
+    setImageToCrop(previewUrl)
+    setShowCropper(true)
+  }
+
+  const handleCropComplete = async (croppedImageUrl: string) => {
     try {
       setUploading(true)
+      setShowCropper(false)
+      
+      // Convert cropped image to file
+      const response = await fetch(croppedImageUrl)
+      const blob = await response.blob()
+      const file = new File([blob], 'profile-picture.jpg', { type: 'image/jpeg' })
       
       await onProfilePictureUpload(file)
       
-      // Update local state with new profile picture
-      // Note: We don't need to update local state here since the parent will refresh
-      // and pass the updated data through props
-      alert('Profile picture uploaded successfully!')
+      // Clean up preview URL
+      URL.revokeObjectURL(imageToCrop)
+      setImageToCrop('')
+      
+      setMessageDialog({
+        open: true,
+        type: 'success',
+        title: 'Success',
+        message: 'Profile picture uploaded successfully!'
+      })
     } catch (error) {
       console.error('Failed to upload profile picture:', error)
-      alert('Failed to upload profile picture. Please try again.')
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to upload profile picture. Please try again.'
+      })
     } finally {
       setUploading(false)
     }
+  }
+
+  const handleCropCancel = () => {
+    setShowCropper(false)
+    if (imageToCrop) {
+      URL.revokeObjectURL(imageToCrop)
+      setImageToCrop('')
+    }
+  }
+
+  const handleBannerFileSelect = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setBannerImageSrc(e.target?.result as string)
+      setShowBannerCropper(true)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleBannerChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'Invalid File',
+        message: 'Please select an image file.'
+      })
+      return
+    }
+
+    // Validate file size (max 10MB for banners)
+    if (file.size > 10 * 1024 * 1024) {
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'File Too Large',
+        message: 'Please select an image smaller than 10MB.'
+      })
+      return
+    }
+
+    // Use the file selection handler
+    handleBannerFileSelect(file)
+  }
+
+  const uploadBanner = async (croppedImageBlob: Blob) => {
+    setBannerUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', croppedImageBlob, 'banner.jpg')
+
+      const response = await fetch('/api/profile/banner', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setEditData(prev => ({ ...prev, banner: data.banner }))
+        setMessageDialog({
+          open: true,
+          type: 'success',
+          title: 'Success',
+          message: 'Banner uploaded successfully!'
+        })
+      } else {
+        const error = await response.json()
+        setMessageDialog({
+          open: true,
+          type: 'error',
+          title: 'Error',
+          message: `Failed to upload banner: ${error.error}`
+        })
+      }
+    } catch (error) {
+      console.error('Error uploading banner:', error)
+      setMessageDialog({
+        open: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to upload banner. Please try again.'
+      })
+    } finally {
+      setBannerUploading(false)
+    }
+  }
+
+  const handleBannerCropCancel = () => {
+    setShowBannerCropper(false)
+    setBannerImageSrc('')
   }
 
   const getProfilePictureUrl = (profilePicture?: string) => {
@@ -110,6 +284,33 @@ export function ProfileSummary({
     }
     
     return profilePicture
+  }
+
+  const getBannerUrl = (banner?: string) => {
+    if (!banner) {
+      return undefined
+    }
+    
+    // If it's already a full URL, return as is
+    if (banner.startsWith('http')) {
+      return banner
+    }
+    
+    // If it's a relative path, construct the API URL
+    if (banner.startsWith('/uploads/')) {
+      // Extract the filename from the path
+      // Path format: /uploads/{userId}/banner/{filename}
+      const pathParts = banner.split('/')
+      
+      if (pathParts.length >= 5) {
+        const userId = pathParts[2]
+        const filename = pathParts[4]
+        const apiUrl = `/api/profile/banner/${userId}/${filename}`
+        return apiUrl
+      }
+    }
+    
+    return banner
   }
 
   const getInitials = (name: string | undefined) => {
@@ -220,6 +421,57 @@ export function ProfileSummary({
             </div>
 
             <div className="space-y-4 sm:space-y-6">
+              {/* Banner Upload */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-slate-700">
+                  Profile Banner
+                </Label>
+                <div className="relative">
+          {editData.banner ? (
+            <div className="relative w-full rounded-lg overflow-hidden border border-gray-200" style={{ aspectRatio: '4/1' }}>
+              <img
+                src={getBannerUrl(editData.banner)}
+                alt="Profile banner"
+                className="w-full h-full object-cover"
+                style={{ aspectRatio: '4/1' }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => bannerInputRef.current?.click()}
+                disabled={bannerUploading}
+                className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                {bannerUploading ? 'Uploading...' : 'Change Banner'}
+              </Button>
+            </div>
+          ) : (
+            <div className="w-full rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center" style={{ aspectRatio: '4/1' }}>
+              <div className="text-center">
+                <Camera className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => bannerInputRef.current?.click()}
+                  disabled={bannerUploading}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {bannerUploading ? 'Uploading...' : 'Upload Banner'}
+                </Button>
+              </div>
+            </div>
+          )}
+                  <input
+                    ref={bannerInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBannerChange}
+                    className="hidden"
+                  />
+                </div>
+              </div>
+
               {/* Profile Picture Upload */}
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
@@ -253,7 +505,7 @@ export function ProfileSummary({
                   </Label>
                   <Input
                     id="name"
-                    value={editData.fullName}
+                    value={editData.fullName || ''}
                     onChange={(e) => setEditData(prev => ({ ...prev, fullName: e.target.value }))}
                     className="mt-1"
                     placeholder="Enter your full name"
@@ -267,7 +519,7 @@ export function ProfileSummary({
                   <Input
                     id="email"
                     type="email"
-                    value={editData.email}
+                    value={editData.email || ''}
                     onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
                     className="mt-1"
                     placeholder="Enter your email"
@@ -339,6 +591,37 @@ export function ProfileSummary({
                     rows={3}
                   />
                 </div>
+
+                {/* Profile Visibility */}
+                <div className="sm:col-span-2">
+                  <Label htmlFor="visibility" className="text-sm font-medium text-slate-700">
+                    Profile Visibility
+                  </Label>
+                  <Select
+                    value={editData.visibility || 'public'}
+                    onValueChange={(value: 'public' | 'private') => 
+                      setEditData(prev => ({ ...prev, visibility: value }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4" />
+                          <span>Public - Anyone can see your profile</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="private">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4" />
+                          <span>Private - Only you can see your profile</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -363,6 +646,35 @@ export function ProfileSummary({
           </div>
         </div>
       )}
+
+      {/* Message Dialog */}
+      <MessageDialog
+        open={messageDialog.open}
+        onClose={() => setMessageDialog(prev => ({ ...prev, open: false }))}
+        type={messageDialog.type}
+        title={messageDialog.title}
+        message={messageDialog.message}
+      />
+
+      {/* Image Cropper */}
+      {showCropper && (
+        <ImageCropper
+          imageUrl={imageToCrop}
+          onCrop={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+        />
+      )}
+
+      {/* Banner Cropper */}
+      <ImageCropper
+        open={showBannerCropper}
+        onOpenChange={setShowBannerCropper}
+        imageSrc={bannerImageSrc}
+        onCropComplete={uploadBanner}
+        aspectRatio={4 / 1}
+        title="Crop Banner Image"
+      />
     </>
   )
 }

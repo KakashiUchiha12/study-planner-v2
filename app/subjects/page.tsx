@@ -168,7 +168,7 @@ export default function SubjectsPage() {
         completedChapters: updatedSubject.completedChapters || 0,
         progress: updatedSubject.progress || 0,
         nextExam: updatedSubject.nextExam || undefined,
-        assignmentsDue: updatedSubject.assignmentsDue || 0
+        assignmentsDue: updatedSubject.assignmentsDue || 0,
       })
       
       // Notify other pages to refresh their data

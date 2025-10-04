@@ -32,62 +32,110 @@ interface FileUploadProps {
 
 export function FileUploadSimple({ subjectId }: FileUploadProps) {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [files, setFiles] = useState<SubjectFile[]>([])
   const { toast } = useToast()
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    const files = event.target.files
+    if (files && files.length > 0) {
+      const fileArray = Array.from(files)
+      
+      // Check file sizes
+      const oversizedFiles = fileArray.filter(file => file.size > 250 * 1024 * 1024) // 250MB limit
+      if (oversizedFiles.length > 0) {
         toast({
-          title: "File too large",
-          description: "Maximum file size is 50MB",
+          title: "Files too large",
+          description: `Maximum file size is 250MB. Oversized files: ${oversizedFiles.map(f => f.name).join(', ')}`,
           variant: "destructive"
         })
         return
       }
-      setSelectedFile(file)
+      
+      setSelectedFiles(fileArray)
     }
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) return
+    if (selectedFiles.length === 0) return
 
     try {
       setIsUploading(true)
 
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('subjectId', subjectId)
+      if (selectedFiles.length === 1) {
+        // Single file upload
+        const formData = new FormData()
+        formData.append('file', selectedFiles[0])
+        formData.append('subjectId', subjectId)
 
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const newFile = data.file
-        
-        setFiles(prev => [newFile, ...prev])
-        
-        toast({
-          title: "Success",
-          description: "File uploaded successfully",
+        const response = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData
         })
 
-        setSelectedFile(null)
-        setIsUploadDialogOpen(false)
+        if (response.ok) {
+          const data = await response.json()
+          const newFile = data.file
+          
+          setFiles(prev => [newFile, ...prev])
+          
+          toast({
+            title: "Success",
+            description: "File uploaded successfully",
+          })
+        } else {
+          throw new Error('Upload failed')
+        }
       } else {
-        throw new Error('Upload failed')
+        // Multiple file upload
+        const formData = new FormData()
+        selectedFiles.forEach(file => {
+          formData.append('files', file)
+        })
+        formData.append('subjectId', subjectId)
+
+        const response = await fetch('/api/files/upload-multiple', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.results && data.results.length > 0) {
+            const newFiles = data.results.map((result: any) => ({
+              ...result.file,
+              // Ensure we use originalName for display
+              displayName: result.file.originalName || result.file.fileName
+            }))
+            setFiles(prev => [...newFiles, ...prev])
+            
+            toast({
+              title: "Success",
+              description: `Uploaded ${data.uploaded}/${data.total} files successfully`,
+            })
+          }
+          
+          if (data.errors && data.errors.length > 0) {
+            toast({
+              title: "Partial Success",
+              description: `Uploaded ${data.uploaded}/${data.total} files. Some files failed: ${data.errors.map((e: any) => e.fileName).join(', ')}`,
+              variant: "destructive"
+            })
+          }
+        } else {
+          throw new Error('Upload failed')
+        }
       }
+
+      setSelectedFiles([])
+      setIsUploadDialogOpen(false)
     } catch (error) {
       console.error('Upload error:', error)
       toast({
         title: "Upload failed",
-        description: "Failed to upload file",
+        description: "Failed to upload files",
         variant: "destructive"
       })
     } finally {
@@ -183,7 +231,7 @@ export function FileUploadSimple({ subjectId }: FileUploadProps) {
         </div>
         <Button onClick={() => setIsUploadDialogOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />
-          Upload File
+          Upload Files
         </Button>
       </div>
 
@@ -280,32 +328,40 @@ export function FileUploadSimple({ subjectId }: FileUploadProps) {
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Upload File</DialogTitle>
+            <DialogTitle>Upload Files</DialogTitle>
             <DialogDescription>
-              Upload a new study material to this subject
+              Upload study materials to this subject (select multiple files to upload at once)
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="file">Select File</Label>
+              <Label htmlFor="file">Select Files</Label>
               <Input
                 id="file"
                 type="file"
+                multiple
                 onChange={handleFileSelect}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mp3,.wav,.ogg"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mp3,.wav,.ogg,.zip,.rar,.7z,.tar,.gz,.js,.ts,.css,.html,.json,.xml,.csv,.rtf,.odt,.ods,.odp,.svg,.bmp,.tiff,.ico,.avi,.mov,.wmv,.flv,.mkv,.aac,.flac,.m4a"
               />
               <p className="text-xs text-muted-foreground">
-                Maximum file size: 50MB. Supported formats: PDF, Documents, Images, Videos, Audio
+                Maximum 20 files, 250MB each. Supported formats: PDF, Documents, Images, Videos, Audio, Slides, Archives, Code files
               </p>
             </div>
 
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
               <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Size: {formatFileSize(selectedFile.size)}
+                <p className="text-sm font-medium mb-2">
+                  {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected
                 </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="flex justify-between items-center text-xs">
+                      <span className="truncate flex-1 mr-2">{file.name}</span>
+                      <span className="text-muted-foreground">{formatFileSize(file.size)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -320,9 +376,9 @@ export function FileUploadSimple({ subjectId }: FileUploadProps) {
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={!selectedFile || isUploading}
+              disabled={selectedFiles.length === 0 || isUploading}
             >
-              {isUploading ? 'Uploading...' : 'Upload File'}
+              {isUploading ? 'Uploading...' : `Upload ${selectedFiles.length} File${selectedFiles.length > 1 ? 's' : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>

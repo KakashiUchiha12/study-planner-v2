@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -28,8 +28,10 @@ import {
 } from "lucide-react"
 import { FileUploadSimple } from '@/components/subjects/file-upload-simple'
 import { useChapters } from '@/hooks/useChapters'
+import { FilePreviewModal } from '../file-preview-modal'
 import { useMaterials } from '@/hooks/useMaterials'
 import { PDFThumbnail } from '@/components/pdf-thumbnail'
+import { FileThumbnail } from '@/components/file-thumbnail'
 import { Chapter, Material } from '@/lib/database'
 
 interface Subject {
@@ -153,6 +155,14 @@ export function SubjectDetailDialog({
   const [editingMaterial, setEditingMaterial] = useState<string | null>(null)
   const [editingMaterialName, setEditingMaterialName] = useState("")
   const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewFileData, setPreviewFileData] = useState<{
+    id: string
+    name: string
+    type: string
+    url: string
+    size: number
+  } | null>(null)
   const [draggedMaterial, setDraggedMaterial] = useState<string | null>(null)
   const [dragOverMaterialIndex, setDragOverMaterialIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -161,10 +171,18 @@ export function SubjectDetailDialog({
   const [addingLinkToMaterial, setAddingLinkToMaterial] = useState<string | null>(null)
   const [uploadingFile, setUploadingFile] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [showErrorDialog, setShowErrorDialog] = useState(false)
+  const [errorDialogMessage, setErrorDialogMessage] = useState('')
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [materialToDelete, setMaterialToDelete] = useState<string | null>(null)
+  const [showDeleteChapterDialog, setShowDeleteChapterDialog] = useState(false)
+  const [chapterToDelete, setChapterToDelete] = useState<string | null>(null)
   const [draggedFile, setDraggedFile] = useState<{ materialId: string; fileId: string } | null>(null)
   const [dragOverFileIndex, setDragOverFileIndex] = useState<{ materialId: string; index: number } | null>(null)
   const [editingFileName, setEditingFileName] = useState<{ materialId: string; fileId: string } | null>(null)
   const [editingFileNameText, setEditingFileNameText] = useState("")
+  const [showDeleteFileDialog, setShowDeleteFileDialog] = useState(false)
+  const [fileToDelete, setFileToDelete] = useState<{ materialId: string; fileId: string } | null>(null)
 
   const createdDate = subject.createdAt ? new Date(subject.createdAt).toLocaleDateString() : 'Date not set'
 
@@ -318,13 +336,33 @@ export function SubjectDetailDialog({
 
   const addMaterial = async () => {
     if (newMaterialName.trim()) {
+      // Check if there are chapters available
+      if (chapters.length === 0) {
+        console.error('Cannot create material: No chapters available. Please create a chapter first.')
+        return
+      }
+      
       try {
+        // Calculate the next order value based on existing materials in the chapter
+        const chapterMaterials = materials.filter(m => m.chapterId === chapters[0].id)
+        const maxOrder = chapterMaterials.length > 0 ? Math.max(...chapterMaterials.map(m => m.order)) : -1
+        const nextOrder = maxOrder + 1
+        
+        console.log('[addMaterial] Creating material with:', {
+          chapterId: chapters[0].id,
+          title: newMaterialName.trim(),
+          type: 'OTHER',
+          order: nextOrder,
+          totalMaterials: materials.length,
+          chapterMaterials: chapterMaterials.length
+        })
+        
               const newMaterial = await createMaterial({
-        chapterId: chapters[0]?.id || '', // Default to first chapter or empty string
+          subjectId: subject.id, // Materials are now independent of chapters
         title: newMaterialName.trim(),
         type: 'OTHER',
         content: '',
-        order: materials.length
+          order: nextOrder
       })
       
       if (newMaterial) {
@@ -614,6 +652,22 @@ export function SubjectDetailDialog({
       setUploadingFile(materialId)
       setUploadError(null)
       
+      // Check file size before upload
+      const maxSize = 250 * 1024 * 1024 // 250MB
+      if (file.size > maxSize) {
+        const errorMessage = `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the maximum limit of 250MB. Please choose a smaller file.`
+        setErrorDialogMessage(errorMessage)
+        setShowErrorDialog(true)
+        setUploadingFile(null)
+        return
+      }
+      
+      console.log(`[FileUpload] Starting upload for material ${materialId}:`, {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      })
+      
       const formData = new FormData()
       formData.append('file', file)
       formData.append('subjectId', subject.id)
@@ -627,7 +681,12 @@ export function SubjectDetailDialog({
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to upload file')
+        const errorMessage = errorData.error || 'Failed to upload file'
+        console.error('[FileUpload] Upload failed:', errorMessage)
+        setErrorDialogMessage(errorMessage)
+        setShowErrorDialog(true)
+        setUploadingFile(null)
+        return
       }
       
       const result = await response.json()
@@ -710,13 +769,221 @@ export function SubjectDetailDialog({
       ))
     } catch (error) {
       console.error('Failed to upload file:', error)
-      setUploadError(error instanceof Error ? error.message : 'Failed to upload file')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+      setUploadError(errorMessage)
+      setErrorDialogMessage(errorMessage)
+      setShowErrorDialog(true)
+    } finally {
+      setUploadingFile(null)
+    }
+  }
+
+  const handleMultipleFileUpload = async (materialId: string, files: FileList) => {
+    try {
+      setUploadingFile(materialId)
+      setUploadError(null)
+      
+      const fileArray = Array.from(files)
+      
+      // Check file sizes before upload
+      const maxSize = 250 * 1024 * 1024 // 250MB
+      const oversizedFiles = fileArray.filter(file => file.size > maxSize)
+      
+      if (oversizedFiles.length > 0) {
+        const errorMessage = `Some files exceed the 250MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`
+        setErrorDialogMessage(errorMessage)
+        setShowErrorDialog(true)
+        setUploadingFile(null)
+        return
+      }
+      
+      console.log(`[MultipleFileUpload] Starting upload for material ${materialId}:`, {
+        fileCount: fileArray.length,
+        fileNames: fileArray.map(f => f.name)
+      })
+      
+      const formData = new FormData()
+      fileArray.forEach(file => {
+        formData.append('files', file)
+      })
+      formData.append('subjectId', subject.id)
+      formData.append('category', 'MATERIAL')
+      formData.append('description', `Uploaded for material: ${materials.find(m => m.id === materialId)?.title || 'Unknown'}`)
+      
+      const response = await fetch('/api/files/upload-multiple', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to upload files')
+      }
+      
+      const result = await response.json()
+      console.log('Multiple files uploaded successfully:', result)
+      
+      // Add all files to the same material
+      if (result.results && result.results.length > 0) {
+        // Get current material to check existing files
+        const currentMaterial = materials.find(m => m.id === materialId)
+        let existingFiles = []
+        let existingLinks = []
+        
+        // Parse existing content if available
+        if (currentMaterial?.content) {
+          try {
+            const parsed = JSON.parse(currentMaterial.content)
+            if (parsed.files && Array.isArray(parsed.files)) {
+              existingFiles = parsed.files
+              existingLinks = parsed.links || []
+            } else {
+              // Legacy format - single file
+              existingFiles = [{
+                id: Date.now().toString(),
+                name: currentMaterial.content,
+                url: currentMaterial.fileUrl || '',
+                size: currentMaterial.fileSize || 0,
+                type: 'file'
+              }]
+            }
+          } catch (e) {
+            console.error('Error parsing existing content:', e)
+            // If parsing fails, treat as single file
+            existingFiles = [{
+              id: Date.now().toString(),
+              name: currentMaterial.content,
+              url: currentMaterial.fileUrl || '',
+              size: currentMaterial.fileSize || 0,
+              type: 'file'
+            }]
+          }
+        }
+        
+        // Add all new files to existing files
+        const newFiles = result.results.map((fileResult: any, index: number) => {
+          console.log(`[Multiple Upload] Processing file result ${index + 1}:`, {
+            id: fileResult.file.id,
+            originalName: fileResult.file.originalName,
+            fileSize: fileResult.file.fileSize
+          })
+          
+          return {
+            id: fileResult.file.id, // Use the actual file ID from the database
+            name: fileResult.file.originalName, // Use original name, not file path
+            url: `/api/files/${fileResult.file.id}`, // Use API endpoint instead of file path
+            size: fileResult.file.fileSize,
+            type: fileResult.file.mimeType || 'file',
+            uploadedAt: new Date().toISOString() // Add missing uploadedAt field
+          }
+        })
+        
+        const allFiles = [...existingFiles, ...newFiles]
+        
+        // Update the material with all files
+        await updateMaterial(materialId, {
+          content: JSON.stringify({
+            files: allFiles,
+            links: existingLinks
+          }),
+          fileUrl: allFiles.length > 0 ? allFiles[0].url : '', // Keep first file as main file URL
+          fileSize: allFiles.reduce((total, file) => total + (file.size || 0), 0) // Total size
+        })
+      }
+      
+      // Refresh materials to show the new files
+      await refreshMaterials()
+      
+      // Show success message
+      if (result.errors && result.errors.length > 0) {
+        const errorMessage = `Uploaded ${result.uploaded}/${result.total} files. Errors: ${result.errors.map((e: any) => e.fileName).join(', ')}`
+        setErrorDialogMessage(errorMessage)
+        setShowErrorDialog(true)
+      }
+      
+    } catch (error) {
+      console.error('Multiple file upload failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload files'
+      setErrorDialogMessage(errorMessage)
+      setShowErrorDialog(true)
     } finally {
       setUploadingFile(null)
     }
   }
 
 
+
+  const handleDeleteMaterialClick = (materialId: string) => {
+    setMaterialToDelete(materialId)
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteChapterClick = (chapterId: string) => {
+    setChapterToDelete(chapterId)
+    setShowDeleteChapterDialog(true)
+  }
+
+  const handleDeleteFileClick = (materialId: string, fileId: string) => {
+    setFileToDelete({ materialId, fileId })
+    setShowDeleteFileDialog(true)
+  }
+
+  const handlePreviewFile = (file: any) => {
+    console.log("🔍 Preview file data:", file)
+    const previewData = {
+      id: file.id,
+      name: file.title || file.name || 'Unknown File',
+      type: file.type || 'application/octet-stream',
+      url: file.fileUrl || file.url || `/api/files/${file.id}`,
+      size: file.fileSize || file.size || 0
+    }
+    console.log("🔍 Mapped preview data:", previewData)
+    setPreviewFileData(previewData)
+    setShowPreviewModal(true)
+    console.log("🔍 Modal should be opening now...")
+  }
+
+  const confirmDeleteMaterial = async () => {
+    if (materialToDelete) {
+      try {
+        await deleteMaterial(materialToDelete)
+        setShowDeleteDialog(false)
+        setMaterialToDelete(null)
+      } catch (error) {
+        console.error('Failed to delete material:', error)
+        setErrorDialogMessage('Failed to delete material')
+        setShowErrorDialog(true)
+      }
+    }
+  }
+
+  const confirmDeleteChapter = async () => {
+    if (chapterToDelete) {
+      try {
+        await deleteChapter(chapterToDelete)
+        setShowDeleteChapterDialog(false)
+        setChapterToDelete(null)
+      } catch (error) {
+        console.error('Failed to delete chapter:', error)
+        setErrorDialogMessage('Failed to delete chapter')
+        setShowErrorDialog(true)
+      }
+    }
+  }
+
+  const confirmDeleteFile = async () => {
+    if (fileToDelete) {
+      try {
+        await removeFileFromMaterial(fileToDelete.materialId, fileToDelete.fileId)
+        setShowDeleteFileDialog(false)
+        setFileToDelete(null)
+      } catch (error) {
+        console.error('Failed to delete file:', error)
+        setErrorDialogMessage('Failed to delete file')
+        setShowErrorDialog(true)
+      }
+    }
+  }
 
   const removeFileFromMaterial = async (materialId: string, fileId?: string) => {
     try {
@@ -810,11 +1077,6 @@ export function SubjectDetailDialog({
     document.body.removeChild(link)
   }
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith("image/")) return <ImageIcon className="h-4 w-4" />
-    if (fileType.includes("pdf")) return <FileText className="h-4 w-4" />
-    return <File className="h-4 w-4" />
-  }
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -1148,7 +1410,7 @@ export function SubjectDetailDialog({
                           >
                             <Edit2 className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteChapter(chapter.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteChapterClick(chapter.id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -1185,6 +1447,13 @@ export function SubjectDetailDialog({
                 />
               </div>
 
+              {chapters.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No chapters available</p>
+                  <p className="text-sm">Please create a chapter first before adding materials.</p>
+                </div>
+              ) : (
               <div className="flex space-x-2">
                 <Input
                   placeholder="Add new material (e.g., Textbook, Notes, Video)"
@@ -1196,6 +1465,7 @@ export function SubjectDetailDialog({
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
+              )}
 
 
 
@@ -1247,7 +1517,7 @@ export function SubjectDetailDialog({
                           >
                             <Edit2 className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteMaterial(material.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteMaterialClick(material.id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -1297,7 +1567,12 @@ export function SubjectDetailDialog({
                                             className="w-full h-full"
                                           />
                                         ) : (
-                                          getFileIcon(file.type)
+                                          <FileThumbnail
+                                            fileUrl={file.url}
+                                            fileName={file.name}
+                                            fileType={file.type}
+                                            className="w-full h-full"
+                                          />
                                         )}
                                       </div>
                                   <div>
@@ -1311,10 +1586,16 @@ export function SubjectDetailDialog({
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-1">
-                                      <Button variant="ghost" size="sm" onClick={() => window.open(file.url, '_blank')}>
+                                      <Button variant="ghost" size="sm" onClick={() => handlePreviewFile(file)}>
                                     <Eye className="h-3 w-3" />
                                   </Button>
-                                      <Button variant="ghost" size="sm" onClick={() => window.open(file.url, '_blank')}>
+                                      <Button variant="ghost" size="sm" onClick={() => {
+                                        // Handle both old file paths and new API URLs
+                                        const fileUrl = file.url.startsWith('/api/files/') 
+                                          ? file.url 
+                                          : `/api/files/${file.id}`
+                                        window.open(fileUrl, '_blank')
+                                      }}>
                                     <Download className="h-3 w-3" />
                                   </Button>
                                     </div>
@@ -1368,7 +1649,12 @@ export function SubjectDetailDialog({
                                           className="w-full h-full"
                                         />
                                       ) : (
-                                        getFileIcon(file.type)
+                                        <FileThumbnail
+                                          fileUrl={file.url}
+                                          fileName={file.name}
+                                          fileType={file.type}
+                                          className="w-full h-full"
+                                        />
                                       )}
                                     </div>
                                     <div>
@@ -1423,13 +1709,19 @@ export function SubjectDetailDialog({
                                     </div>
                                   </div>
                                   <div className="flex items-center space-x-1">
-                                    <Button variant="ghost" size="sm" onClick={() => window.open(file.url, '_blank')}>
+                                    <Button variant="ghost" size="sm" onClick={() => handlePreviewFile(file)}>
                                       <Eye className="h-3 w-3" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => window.open(file.url, '_blank')}>
+                                    <Button variant="ghost" size="sm" onClick={() => {
+                                      // Handle both old file paths and new API URLs
+                                      const fileUrl = file.url.startsWith('/api/files/') 
+                                        ? file.url 
+                                        : `/api/files/${file.id}`
+                                      window.open(fileUrl, '_blank')
+                                    }}>
                                       <Download className="h-3 w-3" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => removeFileFromMaterial(material.id, file.id)}>
+                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteFileClick(material.id, file.id)}>
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </div>
@@ -1504,7 +1796,7 @@ export function SubjectDetailDialog({
                                     Uploading...
                                   </>
                                 ) : (
-                                  'Choose File'
+                                  'Choose Files'
                                 )}
                               </Button>
                               <Button
@@ -1532,11 +1824,18 @@ export function SubjectDetailDialog({
                               id={`file-upload-${material.id}`}
                               type="file"
                               className="hidden"
+                              multiple
                               onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) handleFileUpload(material.id, file)
+                                const files = e.target.files
+                                if (files && files.length > 0) {
+                                  if (files.length === 1) {
+                                    handleFileUpload(material.id, files[0])
+                                  } else {
+                                    handleMultipleFileUpload(material.id, files)
+                                  }
+                                }
                               }}
-                              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp4,.mp3"
+                              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp4,.mp3,.pptx,.xlsx,.zip,.rar"
                             />
                             
                             {/* Link input dialog */}
@@ -1636,10 +1935,115 @@ export function SubjectDetailDialog({
           </Dialog>
         )}
 
+        {/* Error Dialog */}
+        <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="text-red-600">Upload Error</DialogTitle>
+              <DialogDescription>
+                There was an error uploading your file. Please try again.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">{errorDialogMessage}</p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowErrorDialog(false)}>
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <div className="flex justify-end">
           <Button onClick={() => onOpenChange(false)}>Close</Button>
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Material</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this material? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteMaterial}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+      </DialogContent>
+      </Dialog>
+
+      {/* Delete Chapter Confirmation Dialog */}
+      <Dialog open={showDeleteChapterDialog} onOpenChange={setShowDeleteChapterDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Chapter</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this chapter? This action cannot be undone. Materials are independent and will not be affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteChapterDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteChapter}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete File Confirmation Dialog */}
+      <Dialog open={showDeleteFileDialog} onOpenChange={setShowDeleteFileDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete File</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this file? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteFileDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteFile}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        open={showPreviewModal}
+        onOpenChange={setShowPreviewModal}
+        file={previewFileData}
+      />
     </Dialog>
   )
 }

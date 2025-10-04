@@ -98,8 +98,12 @@ export async function GET(
     const userId = (session.user as any).id
     const { id } = await params
     
+    console.log(`[File API] Requesting file with ID: ${id}, User: ${userId}`)
+    
     // Get file info from database
     const file = await fileService.getFileById(id, userId)
+    
+    console.log(`[File API] File found:`, file ? 'Yes' : 'No')
     
     if (!file) {
       return NextResponse.json(
@@ -125,6 +129,8 @@ export async function GET(
     headers.set('Content-Type', file.mimeType)
     headers.set('Content-Disposition', `inline; filename="${file.originalName}"`)
     headers.set('Cache-Control', 'public, max-age=31536000') // Cache for 1 year
+    headers.set('X-Frame-Options', 'SAMEORIGIN') // Allow iframe embedding from same origin
+    headers.set('Content-Security-Policy', "frame-ancestors 'self'") // Allow iframe embedding
     
             return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,

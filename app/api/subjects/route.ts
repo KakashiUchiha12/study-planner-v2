@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         progress: body.progress || 0.0,
         nextExam: body.nextExam ? new Date(body.nextExam) : null,
         assignmentsDue: body.assignmentsDue || 0,
+        visibility: 'public',
         order: nextOrder
       }
     })

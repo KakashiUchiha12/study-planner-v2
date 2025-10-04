@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test App Messaging</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Test App Messaging Integration</h1>
+    <p>This test verifies that the Socket.IO integration is working in your actual application.</p>
+
+    <div class="test-section">
+        <h2>Socket.IO Connection Status</h2>
+        <div>
+            Status: <span id="connectionStatus" class="status disconnected">Disconnected</span>
+            <button id="connectBtn" onclick="connect()">Connect to App</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        <div>
+            Socket ID: <span id="socketId">-</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Real App Conversation</h2>
+        <div>
+            <input type="text" id="conversationIdInput" placeholder="Enter real conversation ID" value="cmfo10mpx001jv50sj87ofow6">
+            <button onclick="joinRealConversation()" id="joinBtn" disabled>Join Real Conversation</button>
+        </div>
+        <div id="conversationResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Event Log</h2>
+        <div class="log" id="eventLog"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Instructions</h2>
+        <ol>
+            <li>Make sure your Next.js app is running on <code>http://localhost:3000</code></li>
+            <li>Make sure the Socket.IO server is running on <code>http://localhost:3001</code></li>
+            <li>Click "Connect to App" to connect to the Socket.IO server</li>
+            <li>Enter a real conversation ID from your app (or use the default one)</li>
+            <li>Click "Join Real Conversation"</li>
+            <li>Go to your app and send a message in that conversation</li>
+            <li>You should see the message appear here in real-time!</li>
+        </ol>
+    </div>
+
+    <script>
+        let socket = null;
+        let isConnected = false;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('eventLog');
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logEntry.style.color = type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#0c5460';
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            const socketIdElement = document.getElementById('socketId');
+            
+            statusElement.textContent = status;
+            statusElement.className = `status ${status.toLowerCase()}`;
+            
+            if (status === 'Connected') {
+                socketIdElement.textContent = socket ? socket.id : '-';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('joinBtn').disabled = false;
+                isConnected = true;
+            } else {
+                socketIdElement.textContent = '-';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('joinBtn').disabled = true;
+                isConnected = false;
+            }
+        }
+
+        function connect() {
+            log('🔌 Connecting to Socket.IO server...');
+            updateConnectionStatus('Connecting');
+            
+            socket = io('http://localhost:3001', {
+                path: '/socket.io/',
+                transports: ['websocket', 'polling'],
+                timeout: 5000
+            });
+
+            socket.on('connect', () => {
+                log('✅ Connected to Socket.IO server', 'success');
+                updateConnectionStatus('Connected');
+                
+                // Authenticate as a test user
+                socket.emit('authenticate', { userId: 'test-app-user' });
+            });
+
+            socket.on('authenticated', (data) => {
+                log(`✅ Authenticated as: ${data.userId}`, 'success');
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`❌ Disconnected: ${reason}`, 'error');
+                updateConnectionStatus('Disconnected');
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`, 'error');
+                updateConnectionStatus('Disconnected');
+            });
+
+            socket.on('message-received', (data) => {
+                log(`📨 MESSAGE RECEIVED: ${data.message.content}`, 'success');
+                log(`   From: ${data.senderId}`, 'success');
+                log(`   Conversation: ${data.conversationId}`, 'success');
+                addTestResult('conversationResult', 'Real-time Message', true, `Received: "${data.message.content}" from ${data.senderId}`);
+            });
+
+            socket.on('user-typing', (data) => {
+                log(`⌨️ User typing: ${data.userId} (${data.isTyping ? 'started' : 'stopped'})`, 'success');
+            });
+
+            socket.on('error', (error) => {
+                log(`❌ Socket error: ${error.message}`, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                log('🔌 Disconnected from Socket.IO server');
+            }
+        }
+
+        function joinRealConversation() {
+            const conversationId = document.getElementById('conversationIdInput').value;
+            if (!conversationId) {
+                addTestResult('conversationResult', 'Join Conversation', false, 'Conversation ID is required');
+                return;
+            }
+            
+            if (!socket || !isConnected) {
+                addTestResult('conversationResult', 'Join Conversation', false, 'Not connected to server');
+                return;
+            }
+            
+            log(`🚪 Joining real conversation: ${conversationId}`);
+            socket.emit('join-conversation', { conversationId });
+        }
+
+        socket.on('joined-conversation', (data) => {
+            log(`✅ Joined conversation: ${data.conversationId}`, 'success');
+            addTestResult('conversationResult', 'Join Conversation', true, `Joined: ${data.conversationId}`);
+        });
+
+        function addTestResult(containerId, testName, passed, details) {
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.style.padding = '10px';
+            resultDiv.style.margin = '5px 0';
+            resultDiv.style.borderRadius = '4px';
+            resultDiv.style.fontWeight = 'bold';
+            resultDiv.style.backgroundColor = passed ? '#d4edda' : '#f8d7da';
+            resultDiv.style.color = passed ? '#155724' : '#721c24';
+            resultDiv.innerHTML = `<strong>${testName}:</strong> ${passed ? 'PASSED' : 'FAILED'} - ${details}`;
+            container.appendChild(resultDiv);
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            log('🚀 App Messaging Test loaded');
+            log('Click "Connect to App" to start testing');
+        };
+    </script>
+</body>
+</html>

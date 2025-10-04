@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-// import { signIn } from "next-auth/react" // Removed NextAuth dependency
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +18,7 @@ import toast from "react-hot-toast"
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -27,6 +28,11 @@ export default function SignUpPage() {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<{
+    available: boolean | null;
+    message: string;
+  }>({ available: null, message: "" })
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const router = useRouter()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,6 +40,53 @@ export default function SignUpPage() {
       ...prev,
       [e.target.name]: e.target.value,
     }))
+  }
+
+  const checkUsernameAvailability = async (username: string) => {
+    if (!username || username.length < 3) {
+      setUsernameStatus({ available: null, message: "" })
+      return
+    }
+
+    setIsCheckingUsername(true)
+    try {
+      const response = await fetch('/api/auth/check-username', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username }),
+      })
+
+      const data = await response.json()
+      setUsernameStatus({
+        available: data.available,
+        message: data.message
+      })
+    } catch (error) {
+      console.error('Error checking username:', error)
+      setUsernameStatus({
+        available: false,
+        message: 'Error checking username availability'
+      })
+    } finally {
+      setIsCheckingUsername(false)
+    }
+  }
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const username = e.target.value
+    setFormData((prev) => ({
+      ...prev,
+      username,
+    }))
+    
+    // Debounce the username check
+    const timeoutId = setTimeout(() => {
+      checkUsernameAvailability(username)
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,19 +110,44 @@ export default function SignUpPage() {
       return
     }
 
+    if (!formData.username) {
+      setError("Username is required")
+      return
+    }
+
+    if (usernameStatus.available === false) {
+      setError("Please choose an available username")
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // Mock account creation - always succeed for now
-      console.log('🔐 Signup: Using mock account creation (NextAuth removed)');
+      // Use NextAuth signIn with credentials (this will create user if doesn't exist)
+      console.log('🔐 Signup: Using NextAuth account creation');
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // For now, always succeed - we'll add proper auth later
-      console.log('🔐 Signup: Mock account creation successful');
-      toast.success("Account created successfully!")
-      router.push("/dashboard")
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        username: formData.username,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        console.log('🔐 Signup: Account creation failed:', result.error);
+        setError("Failed to create account. Please try again.");
+        return;
+      }
+
+      if (result?.ok) {
+        console.log('🔐 Signup: NextAuth account creation successful');
+        console.log('🔐 Signup: Result:', result);
+        toast.success("Account created successfully!")
+        
+        // Force a page reload to ensure session is established
+        window.location.href = "/dashboard"
+      }
     } catch (err) {
       console.error('🔐 Signup: Account creation error:', err);
       setError("An error occurred. Please try again.")
@@ -88,7 +166,7 @@ export default function SignUpPage() {
           <div className="flex justify-center">
             <div className="flex items-center space-x-2">
               <BookOpen className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold text-foreground">StudyPlanner</span>
+              <span className="text-2xl font-bold text-foreground">StudyHi</span>
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-bold tracking-tight text-foreground">Create your account</h2>
@@ -98,7 +176,7 @@ export default function SignUpPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign Up</CardTitle>
-            <CardDescription>Create your StudyPlanner account to get started</CardDescription>
+            <CardDescription>Create your StudyHi account to get started</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -119,6 +197,30 @@ export default function SignUpPage() {
                   onChange={handleInputChange}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Choose a unique username"
+                  value={formData.username}
+                  onChange={handleUsernameChange}
+                  required
+                />
+                {usernameStatus.message && (
+                  <p className={`text-sm ${
+                    usernameStatus.available === true 
+                      ? 'text-green-600' 
+                      : usernameStatus.available === false 
+                        ? 'text-red-600' 
+                        : 'text-muted-foreground'
+                  }`}>
+                    {isCheckingUsername ? 'Checking...' : usernameStatus.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

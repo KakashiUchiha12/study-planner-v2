@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ': ' + msg;
+            messages.appendChild(div);
+            console.log(msg);
+        }
+        
+        addMessage('Creating WebSocket connection...');
+        
+        const ws = new WebSocket('ws://localhost:3000/api/ws');
+        
+        ws.onopen = function(event) {
+            addMessage('✅ WebSocket connected successfully!');
+            status.textContent = 'Connected';
+            status.style.color = 'green';
+        };
+        
+        ws.onmessage = function(event) {
+            addMessage('📨 Received: ' + event.data);
+        };
+        
+        ws.onclose = function(event) {
+            addMessage('❌ WebSocket closed - Code: ' + event.code + ', Reason: ' + event.reason + ', Clean: ' + event.wasClean);
+            status.textContent = 'Disconnected';
+            status.style.color = 'red';
+        };
+        
+        ws.onerror = function(error) {
+            addMessage('🚨 WebSocket error: ' + error);
+            status.textContent = 'Error';
+            status.style.color = 'red';
+        };
+        
+        // Send a test message after 2 seconds
+        setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                addMessage('📤 Sending test message...');
+                ws.send(JSON.stringify({ type: 'test', message: 'Hello from client!' }));
+            } else {
+                addMessage('❌ Cannot send message - connection not open');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

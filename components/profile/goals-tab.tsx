@@ -41,6 +41,7 @@ export interface GoalCard {
   tasks: GoalTask[]
   userId: string
   order: number
+  visibility: string
   createdAt: Date
   updatedAt: Date
 }

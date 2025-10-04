@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend Messaging</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .message { background: #e8f5e9; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .controls { margin: 20px 0; }
+        button { margin: 5px; padding: 10px; }
+        input { margin: 5px; padding: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Test Frontend WebSocket Messaging</h1>
+    
+    <div class="controls">
+        <h3>User 1 (Haris Khan):</h3>
+        <input type="text" id="message1" placeholder="Type a message..." value="Hello from Haris!">
+        <button onclick="sendMessage('cmfh5jdjy0000v5eg1jhjeqcl', 'Haris Khan', 'message1')">Send as Haris</button>
+        
+        <h3>User 2 (Hassam Khan):</h3>
+        <input type="text" id="message2" placeholder="Type a message..." value="Hello from Hassam!">
+        <button onclick="sendMessage('cmfi6o3gf0010v5ocwjcf4h5i', 'Hassam Khan', 'message2')">Send as Hassam</button>
+        
+        <h3>Controls:</h3>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <button onclick="testConnection()">Test Connection</button>
+    </div>
+    
+    <div id="logs">
+        <div class="log">🔌 Connecting to WebSocket server...</div>
+    </div>
+
+    <script>
+        const conversationId = 'cmfo10mpx001jv50sj87ofow6';
+        let ws = null;
+        let isConnected = false;
+        let authenticatedUserId = null;
+        
+        function log(message, isError = false) {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.className = isError ? 'error' : 'log';
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+        
+        function logMessage(message) {
+            const logs = document.getElementById('logs');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] 📨 ${message}`;
+            logs.appendChild(div);
+            logs.scrollTop = logs.scrollHeight;
+            console.log('MESSAGE:', message);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        function connectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+            
+            ws = new WebSocket('ws://localhost:3001/api/ws');
+            
+            ws.onopen = function() {
+                log('✅ Connected to WebSocket server');
+                isConnected = true;
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📥 Received: ${data.type}${data.channel ? ` on ${data.channel}` : ''}`);
+                    
+                    if (data.type === 'connected') {
+                        log(`🔗 Connection ID: ${data.connectionId}`);
+                    }
+                    
+                    if (data.type === 'auth_success') {
+                        log(`✅ Authenticated as: ${data.userId}`);
+                        authenticatedUserId = data.userId;
+                        subscribeToConversation();
+                    }
+                    
+                    if (data.type === 'new-message' && data.channel) {
+                        const content = data.content || data.message?.content || 'No content';
+                        const sender = data.sender || data.message?.sender?.name || 'Unknown';
+                        logMessage(`💬 ${sender}: ${content}`);
+                    }
+                } catch (error) {
+                    log(`❌ Error parsing message: ${error.message}`, true);
+                }
+            };
+            
+            ws.onclose = function(event) {
+                log(`❌ Connection closed: ${event.code} ${event.reason}`, true);
+                isConnected = false;
+                authenticatedUserId = null;
+                // Reconnect after 2 seconds
+                setTimeout(connectWebSocket, 2000);
+            };
+            
+            ws.onerror = function(error) {
+                log(`❌ WebSocket error: ${error}`, true);
+            };
+        }
+        
+        function subscribeToConversation() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const channel = `conversation-${conversationId}`;
+                ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    channel: channel
+                }));
+                log(`📡 Subscribed to ${channel}`);
+            }
+        }
+        
+        function sendMessage(userId, userName, inputId) {
+            const messageInput = document.getElementById(inputId);
+            const content = messageInput.value.trim();
+            
+            if (!content) {
+                log('❌ Please enter a message', true);
+                return;
+            }
+            
+            if (!isConnected) {
+                log('❌ Not connected to WebSocket', true);
+                return;
+            }
+            
+            // Authenticate as this user if not already authenticated
+            if (authenticatedUserId !== userId) {
+                ws.send(JSON.stringify({
+                    type: 'auth',
+                    userId: userId
+                }));
+                log(`🔐 Authenticating as ${userName} (${userId})`);
+                
+                // Wait a bit then subscribe and send
+                setTimeout(() => {
+                    sendMessageAfterAuth(userId, userName, content);
+                }, 500);
+            } else {
+                sendMessageAfterAuth(userId, userName, content);
+            }
+            
+            messageInput.value = '';
+        }
+        
+        function sendMessageAfterAuth(userId, userName, content) {
+            // Send the message via broadcast
+            ws.send(JSON.stringify({
+                type: 'broadcast',
+                channel: `conversation-${conversationId}`,
+                message: {
+                    type: 'new-message',
+                    content: content,
+                    sender: userName,
+                    senderId: userId,
+                    timestamp: Date.now()
+                }
+            }));
+            
+            log(`📤 Sent message as ${userName}: ${content}`);
+        }
+        
+        function testConnection() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+                log('📍 Sent ping to server');
+            } else {
+                log('❌ Not connected', true);
+            }
+        }
+        
+        // Start connection
+        connectWebSocket();
+    </script>
+</body>
+</html>

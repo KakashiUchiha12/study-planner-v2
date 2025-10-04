@@ -22,6 +22,7 @@ import {
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { PDFThumbnail } from '@/components/pdf-thumbnail'
+import { FileThumbnail } from '@/components/file-thumbnail'
 
 export interface DocumentCard {
   id: string
@@ -332,7 +333,12 @@ function SortableDocumentCard({
                   className="w-full h-full"
                 />
               ) : (
-                getFileIcon(document.mimeType)
+                <FileThumbnail
+                  fileUrl={`/api/documents/${document.id}/file`}
+                  fileName={document.originalName}
+                  fileType={document.mimeType}
+                  className="w-full h-full"
+                />
               )}
             </div>
             
@@ -356,8 +362,9 @@ function SortableDocumentCard({
               size="sm" 
               onClick={() => {
                 const url = `/api/documents/${document.id}/file`
-                console.log('Opening document URL:', url)
-                window.open(url, '_blank')
+                console.log('Opening document preview:', url)
+                // Open in new window (not tab) with specific dimensions
+                window.open(url, 'documentPreview', 'width=1000,height=700,scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no')
               }}
               className="flex-1 h-8 border-slate-200 text-slate-700 hover:bg-slate-50 text-xs"
             >
@@ -368,14 +375,10 @@ function SortableDocumentCard({
               variant="outline" 
               size="sm" 
               onClick={() => {
-                const url = `/api/documents/${document.id}/file`
-                console.log('Downloading document URL:', url)
-                const link = globalThis.document.createElement('a')
-                link.href = url
-                link.download = document.name
-                globalThis.document.body.appendChild(link)
-                link.click()
-                globalThis.document.body.removeChild(link)
+                const url = `/api/documents/${document.id}/file?download=true`
+                console.log('Downloading document:', document.originalName || document.name)
+                // Direct navigation to download URL with proper headers
+                window.location.href = url
               }}
               className="flex-1 h-8 border-slate-200 text-slate-700 hover:bg-slate-50 text-xs"
             >

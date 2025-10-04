@@ -1,20 +1,45 @@
-import Pusher from "pusher"
-import PusherClient from "pusher-js"
+// WebSocket-based server for triggering events (replaces Pusher server)
+// This avoids circular imports by using dynamic imports
 
-// Server-side Pusher instance
-export const pusherServer = process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SECRET && process.env.PUSHER_CLUSTER
-  ? new Pusher({
-      appId: process.env.PUSHER_APP_ID,
-      key: process.env.PUSHER_KEY,
-      secret: process.env.PUSHER_SECRET,
-      cluster: process.env.PUSHER_CLUSTER,
-      useTLS: true,
-    })
-  : null
+class WebSocketServer {
+  async trigger(channel: string, event: string, data: any) {
+    console.log(`🔌 WebSocket Server: TRIGGERING ${channel}:${event}`, data);
+    
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { broadcastMessage, broadcastToUser } = await import('./socketio-broadcaster.js');
+      
+      // Broadcast to the appropriate channel
+      if (channel.startsWith('conversation-')) {
+        const conversationId = channel.replace('conversation-', '');
+        broadcastMessage(conversationId, {
+          type: event,
+          ...data
+        });
+      } else if (channel.startsWith('user-')) {
+        const userId = channel.replace('user-', '');
+        broadcastToUser(userId, event, data);
+      }
+    } catch (error) {
+      console.error('🔌 WebSocket Server: Error triggering event:', error);
+    }
+  }
+}
 
-// Client-side Pusher instance
-export const pusherClient = process.env.NEXT_PUBLIC_PUSHER_KEY && process.env.NEXT_PUBLIC_PUSHER_CLUSTER
-  ? new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    })
-  : null
+const wsServer = new WebSocketServer();
+
+// Export the WebSocket server (replaces pusherServer)
+export const pusherServer = wsServer;
+
+// Add methods to check and manage instance identity
+if (typeof global !== 'undefined') {
+  (global as any).checkWebSocketInstance = () => {
+    console.log('🔌 WebSocket: Checking instance identity');
+    console.log('🔌 WebSocket: pusherServer type:', typeof pusherServer);
+  };
+
+  (global as any).resetWebSocketInstance = () => {
+    console.log('🔌 WebSocket: Resetting global instance');
+    console.log('🔌 WebSocket: Reset complete');
+  };
+}

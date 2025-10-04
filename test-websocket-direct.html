@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct WebSocket Test</title>
+</head>
+<body>
+    <h1>Direct WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    <button onclick="sendTestMessage()">Send Test Message</button>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        let ws = null;
+        
+        function addMessage(text, type = 'info') {
+            const div = document.createElement('div');
+            div.textContent = text;
+            div.style.margin = '5px 0';
+            div.style.padding = '5px';
+            div.style.border = '1px solid #ccc';
+            if (type === 'error') {
+                div.style.backgroundColor = '#ffebee';
+                div.style.borderColor = '#f44336';
+            } else if (type === 'success') {
+                div.style.backgroundColor = '#e8f5e8';
+                div.style.borderColor = '#4caf50';
+            }
+            messages.appendChild(div);
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addMessage('Already connected!', 'info');
+                return;
+            }
+            
+            status.textContent = 'Connecting...';
+            status.style.color = 'orange';
+            
+            try {
+                ws = new WebSocket('ws://localhost:3000/api/ws');
+                
+                ws.onopen = function(event) {
+                    status.textContent = 'Connected!';
+                    status.style.color = 'green';
+                    addMessage('WebSocket connected successfully', 'success');
+                    console.log('WebSocket connected');
+                };
+                
+                ws.onmessage = function(event) {
+                    const message = JSON.parse(event.data);
+                    addMessage(`Received: ${JSON.stringify(message)}`, 'info');
+                    console.log('Received message:', message);
+                };
+                
+                ws.onclose = function(event) {
+                    status.textContent = `Disconnected (Code: ${event.code})`;
+                    status.style.color = 'red';
+                    addMessage(`Connection closed: Code ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`, 'error');
+                    console.log('WebSocket closed:', event.code, event.reason);
+                };
+                
+                ws.onerror = function(error) {
+                    status.textContent = 'Error!';
+                    status.style.color = 'red';
+                    addMessage('WebSocket error occurred', 'error');
+                    console.error('WebSocket error:', error);
+                };
+            } catch (error) {
+                addMessage(`Error creating WebSocket: ${error.message}`, 'error');
+                console.error('Error creating WebSocket:', error);
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'User disconnected');
+                ws = null;
+            }
+        }
+        
+        function sendTestMessage() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'test',
+                    message: 'Hello from client',
+                    timestamp: Date.now()
+                };
+                ws.send(JSON.stringify(message));
+                addMessage(`Sent: ${JSON.stringify(message)}`, 'info');
+            } else {
+                addMessage('WebSocket not connected', 'error');
+            }
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            connect();
+        };
+    </script>
+</body>
+</html>
+

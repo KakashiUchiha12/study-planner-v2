@@ -589,7 +589,7 @@ export class MigrationUtility {
 
             // Create material in database
             await materialService.createMaterial({
-              chapterId: chapter.id,
+              subjectId: subject.id,
               title: material.title,
               type: material.type || 'OTHER',
               content: material.content || '',

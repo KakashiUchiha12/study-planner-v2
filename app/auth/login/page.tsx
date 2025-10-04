@@ -5,7 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-// import { signIn } from "next-auth/react" // Removed NextAuth dependency
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,16 +30,29 @@ export default function LoginPage() {
     console.log('🔐 Login: Starting authentication process...', { email, hasPassword: !!password });
 
     try {
-      // Mock authentication - always succeed for now
-      console.log('🔐 Login: Using mock authentication (NextAuth removed)');
+      // Use NextAuth signIn
+      console.log('🔐 Login: Using NextAuth authentication');
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For now, always succeed - we'll add proper auth later
-      console.log('🔐 Login: Mock authentication successful');
-      toast.success("Welcome back!")
-      router.push("/dashboard")
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        console.log('🔐 Login: Authentication failed:', result.error);
+        setError("Invalid email or password");
+        return;
+      }
+
+      if (result?.ok) {
+        console.log('🔐 Login: NextAuth authentication successful');
+        console.log('🔐 Login: Result:', result);
+        toast.success("Welcome back!")
+        
+        // Force a page reload to ensure session is established
+        window.location.href = "/dashboard"
+      }
     } catch (err) {
       console.error('🔐 Login: Authentication error:', err);
       setError("An error occurred. Please try again.")
@@ -58,7 +71,7 @@ export default function LoginPage() {
           <div className="flex justify-center">
             <div className="flex items-center space-x-2">
               <BookOpen className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold text-foreground">StudyPlanner</span>
+              <span className="text-2xl font-bold text-foreground">StudyHi</span>
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-bold tracking-tight text-foreground">Welcome back</h2>

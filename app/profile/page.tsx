@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, Target, FolderOpen, X, CheckCircle, Plus } from "lucide-react"
+import { Eye, Target, FolderOpen, X, CheckCircle, Plus, User } from "lucide-react"
 import { useRouter } from 'next/navigation'
+import { MessageDialog } from "@/components/ui/message-dialog"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 // Import our new database hooks
 import { useProfile } from '@/hooks/useProfile'
@@ -24,7 +26,7 @@ import { OverviewTab } from "@/components/profile/overview-tab"
 import { GoalsTab } from "@/components/profile/goals-tab"
 import { DocumentsTab } from "@/components/profile/documents-tab"
 
-// Import interface types from components
+// Import interface types from components  
 import type { GoalCard, GoalTask } from '@/components/profile/goals-tab'
 import type { DocumentCard } from '@/components/profile/documents-tab'
 import type { ProfileData } from '@/components/profile/profile-summary'
@@ -33,6 +35,7 @@ export default function ProfilePage() {
   // ALL HOOKS MUST BE CALLED FIRST - before any conditional logic
   const { data: session, status } = useSession()
   const router = useRouter()
+  
   
   // Database hooks - temporarily simplified to prevent infinite loops
   const { 
@@ -73,16 +76,17 @@ export default function ProfilePage() {
   // const goalsError = null
   // const skillsError = null
 
-  // Local UI state hooks
+  // Local UI state hooks - start with empty values, will be updated when profile loads
   const [profileData, setProfileData] = useState<ProfileData>({
-    fullName: profile?.fullName || 'Student Name',
-    email: profile?.user?.email || 'user@example.com',
-    university: profile?.university || '',
-    program: profile?.program || '',
-    currentYear: profile?.currentYear || '',
-    gpa: profile?.gpa || '',
-    bio: profile?.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
-    profilePicture: profile?.profilePicture || undefined
+    fullName: 'Student Name',
+    email: 'user@example.com',
+    university: '',
+    program: '',
+    currentYear: '',
+    gpa: '',
+    bio: 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
+    profilePicture: undefined,
+    banner: undefined
   })
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -101,6 +105,32 @@ export default function ProfilePage() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
+  // Dialog states
+  const [messageDialog, setMessageDialog] = useState<{
+    open: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+  }>({
+    open: false,
+    type: 'info',
+    title: '',
+    message: ''
+  })
+
+  const [confirmationDialog, setConfirmationDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'default' | 'destructive';
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  })
+
   // Show success message
   const showSuccess = (message: string) => {
     setSuccessMessage(message)
@@ -108,21 +138,43 @@ export default function ProfilePage() {
     setTimeout(() => setShowSuccessMessage(false), 3000)
   }
 
+  // Dialog helper functions
+  const showMessage = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
+    setMessageDialog({
+      open: true,
+      type,
+      title,
+      message
+    })
+  }
+
+  const showConfirmation = (title: string, message: string, onConfirm: () => void, variant: 'default' | 'destructive' = 'default') => {
+    setConfirmationDialog({
+      open: true,
+      title,
+      message,
+      onConfirm,
+      variant
+    })
+  }
+
   // Update profileData when profile changes
   useEffect(() => {
-    const newProfileData = {
-      fullName: profile?.fullName || 'Student Name',
-      email: profile?.user?.email || 'user@example.com',
-      university: profile?.university || '',
-      program: profile?.program || '',
-      currentYear: profile?.currentYear || '',
-      gpa: profile?.gpa || '',
-      bio: profile?.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
-      profilePicture: profile?.profilePicture || undefined
+    if (profile) {
+      const newProfileData = {
+        fullName: profile.fullName || 'Student Name',
+        email: profile.email || 'user@example.com',
+        university: profile.university || '',
+        program: profile.program || '',
+        currentYear: profile.currentYear || '',
+        gpa: profile.gpa || '',
+        bio: profile.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
+        profilePicture: profile.profilePicture || undefined
+      }
+      
+      setProfileData(newProfileData)
+      setEditingProfileData(newProfileData)
     }
-    
-    setProfileData(newProfileData)
-    setEditingProfileData(newProfileData)
   }, [profile])
 
   // Handle profile picture upload
@@ -155,29 +207,40 @@ export default function ProfilePage() {
       await refreshProfile()
       
       // Show success feedback
-      alert('Profile picture uploaded successfully!')
+      // Note: Success feedback is now handled by the ProfileSummary component
       
     } catch (error) {
       console.error('Failed to upload profile picture:', error)
-      alert('Failed to upload profile picture. Please try again.')
+      // Note: Error feedback is now handled by the ProfileSummary component
       throw error
     }
+  }
+
+  // Handle banner upload - now handled directly in ProfileSummary component
+  const handleBannerUpload = async (file: File) => {
+    // This is now handled directly in the ProfileSummary component
+    // We just need to refresh the profile data after upload
+    await refreshProfile()
   }
 
   // Handle profile update
   const handleUpdateProfile = async (profileData: any) => {
     try {
+      console.log('Updating profile with data:', profileData);
       await updateProfile(profileData)
       setEditingProfile(false)
+      
+      // Refresh profile data to get the updated information
+      await refreshProfile()
       
       // Create activity for profile update
       await ActivityCreators.profileUpdated('Profile information updated')
       
       // Show success feedback
-      alert('Profile updated successfully!')
+      // Note: Success feedback is now handled by the ProfileSummary component
     } catch (error) {
       console.error('Failed to update profile:', error)
-      alert('Failed to update profile. Please try again.')
+      // Note: Error feedback is now handled by the ProfileSummary component
     }
   }
 
@@ -215,7 +278,7 @@ export default function ProfilePage() {
       showSuccess('Goal created successfully!')
     } catch (error) {
       console.error('Failed to create goal:', error)
-      alert('Failed to create goal. Please try again.')
+      showMessage('error', 'Error', 'Failed to create goal. Please try again.')
     }
   }
 
@@ -243,20 +306,25 @@ export default function ProfilePage() {
       showSuccess('Goal updated successfully!')
     } catch (error) {
       console.error('Failed to update goal:', error)
-      alert('Failed to update goal. Please try again.')
+      showMessage('error', 'Error', 'Failed to update goal. Please try again.')
     }
   }
 
   const handleDeleteGoal = async (goalId: string) => {
-    if (!confirm('Are you sure you want to delete this goal?')) return
-    
-    try {
-      await deleteGoal(goalId)
-      alert('Goal deleted successfully!')
-    } catch (error) {
-      console.error('Failed to delete goal:', error)
-      alert('Failed to delete goal. Please try again.')
-    }
+    showConfirmation(
+      'Delete Goal',
+      'Are you sure you want to delete this goal? This action cannot be undone.',
+      async () => {
+        try {
+          await deleteGoal(goalId)
+          showMessage('success', 'Success', 'Goal deleted successfully!')
+        } catch (error) {
+          console.error('Failed to delete goal:', error)
+          showMessage('error', 'Error', 'Failed to delete goal. Please try again.')
+        }
+      },
+      'destructive'
+    )
   }
 
 
@@ -274,10 +342,10 @@ export default function ProfilePage() {
   const handleToggleTask = async (taskId: string) => {
     try {
       await toggleGoalTask(taskId)
-      alert('Task status updated successfully!')
+      showMessage('success', 'Success', 'Task status updated successfully!')
     } catch (error) {
       console.error('Failed to toggle task:', error)
-      alert('Failed to update task status. Please try again.')
+      showMessage('error', 'Error', 'Failed to update task status. Please try again.')
     }
   }
 
@@ -297,10 +365,10 @@ export default function ProfilePage() {
       setSelectedGoalId(null)
       
       // Show success feedback
-      alert('Task created successfully!')
+      showMessage('success', 'Success', 'Task created successfully!')
     } catch (error) {
       console.error('Failed to create task:', error)
-      alert('Failed to create task. Please try again.')
+      showMessage('error', 'Error', 'Failed to create task. Please try again.')
     }
   }
 
@@ -317,32 +385,39 @@ export default function ProfilePage() {
       setShowEditTaskModal(false)
       
       // Show success feedback
-      alert('Task updated successfully!')
+      showMessage('success', 'Success', 'Task updated successfully!')
     } catch (error) {
       console.error('Failed to update task:', error)
-      alert('Failed to update task. Please try again.')
+      showMessage('error', 'Error', 'Failed to update task. Please try again.')
     }
   }
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm('Are you sure you want to delete this task?') || !editingGoal) return
+    if (!editingGoal) return
     
-    try {
-      await deleteGoalTask(editingGoal.id, taskId)
-      alert('Task deleted successfully!')
-    } catch (error) {
-      console.error('Failed to delete task:', error)
-      alert('Failed to delete task. Please try again.')
-    }
+    showConfirmation(
+      'Delete Task',
+      'Are you sure you want to delete this task? This action cannot be undone.',
+      async () => {
+        try {
+          await deleteGoalTask(editingGoal.id, taskId)
+          showMessage('success', 'Success', 'Task deleted successfully!')
+        } catch (error) {
+          console.error('Failed to delete task:', error)
+          showMessage('error', 'Error', 'Failed to delete task. Please try again.')
+        }
+      },
+      'destructive'
+    )
   }
 
   const handleReorderGoals = async (goalIds: string[]) => {
     try {
       await reorderGoals(goalIds)
-      alert('Goals reordered successfully!')
+      showMessage('success', 'Success', 'Goals reordered successfully!')
     } catch (error) {
       console.error('Failed to reorder goals:', error)
-      alert('Failed to reorder goals. Please try again.')
+      showMessage('error', 'Error', 'Failed to reorder goals. Please try again.')
     }
   }
 
@@ -351,11 +426,11 @@ export default function ProfilePage() {
     try {
       const newDocument = await uploadDocument(file)
       // Transform the database document to DocumentCard format
-      alert('Document uploaded successfully!')
+      showMessage('success', 'Success', 'Document uploaded successfully!')
       return transformDocuments([newDocument])[0]
     } catch (error) {
       console.error('Failed to upload document:', error)
-      alert('Failed to upload document. Please try again.')
+      showMessage('error', 'Error', 'Failed to upload document. Please try again.')
       throw error
     }
   }
@@ -364,24 +439,29 @@ export default function ProfilePage() {
     try {
       await updateDocument(docId, data)
       // No need to return anything - the child component will handle state updates
-      alert('Document updated successfully!')
+      showMessage('success', 'Success', 'Document updated successfully!')
     } catch (error) {
       console.error('Failed to update document:', error)
-      alert('Failed to update document. Please try again.')
+      showMessage('error', 'Error', 'Failed to update document. Please try again.')
       throw error
     }
   }
 
   const handleDeleteDocument = async (docId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return
-    
-    try {
-      await deleteDocument(docId)
-      alert('Document deleted successfully!')
-    } catch (error) {
-      console.error('Failed to delete document:', error)
-      alert('Failed to delete document. Please try again.')
-    }
+    showConfirmation(
+      'Delete Document',
+      'Are you sure you want to delete this document? This action cannot be undone.',
+      async () => {
+        try {
+          await deleteDocument(docId)
+          showMessage('success', 'Success', 'Document deleted successfully!')
+        } catch (error) {
+          console.error('Failed to delete document:', error)
+          showMessage('error', 'Error', 'Failed to delete document. Please try again.')
+        }
+      },
+      'destructive'
+    )
   }
 
   const handleToggleDocumentPin = async (docId: string) => {
@@ -400,11 +480,11 @@ export default function ProfilePage() {
       await reorderDocuments(docIds)
       
       // No need to refresh documents - the hook already updates local state
-      alert('Documents reordered successfully!')
+      showMessage('success', 'Success', 'Documents reordered successfully!')
       
     } catch (error) {
       console.error('Failed to reorder documents:', error)
-      alert('Failed to reorder documents. Please try again.')
+      showMessage('error', 'Error', 'Failed to reorder documents. Please try again.')
     }
   }
 
@@ -419,20 +499,49 @@ export default function ProfilePage() {
         currentYear: '',
         gpa: '',
         bio: '',
-        profilePicture: undefined
+        profilePicture: undefined,
+        banner: undefined
       }
     }
     
     return {
       fullName: dbProfile.fullName || 'Student Name',
-      email: dbProfile.user?.email || 'user@example.com',
+      email: dbProfile.email || 'user@example.com',
       university: dbProfile.university || '',
       program: dbProfile.program || '',
       currentYear: dbProfile.currentYear || '',
       gpa: dbProfile.gpa || '',
       bio: dbProfile.bio || 'Passionate computer science student focused on web development and data science. Always eager to learn new technologies and solve complex problems.',
-      profilePicture: dbProfile.profilePicture || undefined
+      profilePicture: dbProfile.profilePicture || undefined,
+      banner: dbProfile.banner || undefined
     }
+  }
+
+  const getBannerUrl = (banner?: string) => {
+    if (!banner) {
+      return undefined
+    }
+    
+    // If it's already a full URL, return as is
+    if (banner.startsWith('http')) {
+      return banner
+    }
+    
+    // If it's a relative path, construct the API URL
+    if (banner.startsWith('/uploads/')) {
+      // Extract the filename from the path
+      // Path format: /uploads/{userId}/banner/{filename}
+      const pathParts = banner.split('/')
+      
+      if (pathParts.length >= 5) {
+        const userId = pathParts[2]
+        const filename = pathParts[4]
+        const apiUrl = `/api/profile/banner/${userId}/${filename}`
+        return apiUrl
+      }
+    }
+    
+    return banner
   }
 
   const transformGoals = (dbGoals: any[]): GoalCard[] => {
@@ -446,6 +555,7 @@ export default function ProfilePage() {
       tasks: goal.tasks || [],
       userId: goal.userId,
       order: goal.order,
+      visibility: goal.visibility || 'public',
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt
     }))
@@ -553,9 +663,31 @@ export default function ProfilePage() {
       
       <ProfileHeader onBackToDashboard={handleBackToDashboard} />
       
-      <div className="container mx-auto max-w-7xl p-4 md:p-8">
+      <div className="container mx-auto max-w-7xl p-0 md:p-8">
+        {/* Profile Banner */}
+        <div className="relative w-full rounded-none md:rounded-lg overflow-hidden mb-0 md:mb-6" style={{ aspectRatio: '4/1' }}>
+        {transformedProfileData.banner ? (
+          <img
+            src={getBannerUrl(transformedProfileData.banner)}
+            alt={`${transformedProfileData.fullName}'s banner`}
+            className="w-full h-full object-cover"
+            style={{ aspectRatio: '4/1' }}
+          />
+        ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
+              <div className="text-center text-white">
+                <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+                  <User className="w-8 h-8 md:w-10 md:h-10" />
+                </div>
+                <h2 className="text-lg md:text-xl font-semibold">{transformedProfileData.fullName}</h2>
+                <p className="text-sm md:text-base opacity-90">Welcome to my profile</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Profile Summary */}
-        <div className="mb-6">
+        <div className="mb-6 px-4 md:px-0">
           <ProfileSummary 
             profileData={transformedProfileData}
             activeGoalsCount={goals.filter(g => g.status === 'active').length}
@@ -563,6 +695,7 @@ export default function ProfilePage() {
             onEditProfile={() => setEditingProfile(true)}
             onCloseEditProfile={() => setEditingProfile(false)}
             onProfilePictureUpload={handleProfilePictureUpload}
+            onBannerUpload={handleBannerUpload}
             onUpdateProfile={handleUpdateProfile}
           />
         </div>
@@ -889,6 +1022,25 @@ export default function ProfilePage() {
 
       {/* Add Objective Modal */}
       {/* Removed as per edit hint */}
+
+      {/* Message Dialog */}
+      <MessageDialog
+        open={messageDialog.open}
+        onClose={() => setMessageDialog(prev => ({ ...prev, open: false }))}
+        type={messageDialog.type}
+        title={messageDialog.title}
+        message={messageDialog.message}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={confirmationDialog.open}
+        onClose={() => setConfirmationDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmationDialog.onConfirm}
+        title={confirmationDialog.title}
+        message={confirmationDialog.message}
+        variant={confirmationDialog.variant}
+      />
     </div>
   )
 }

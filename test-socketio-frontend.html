@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Frontend Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status.connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Socket.IO Frontend Test Suite</h1>
+    <p>This page tests the Socket.IO client functionality in the browser.</p>
+
+    <div class="test-section">
+        <h2>Connection Status</h2>
+        <div>
+            Status: <span id="connectionStatus" class="status disconnected">Disconnected</span>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        <div>
+            Socket ID: <span id="socketId">-</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Authentication Test</h2>
+        <div>
+            <input type="text" id="userIdInput" placeholder="Enter User ID" value="test-user-frontend">
+            <button onclick="authenticate()" id="authBtn" disabled>Authenticate</button>
+        </div>
+        <div id="authResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Conversation Test</h2>
+        <div>
+            <input type="text" id="conversationIdInput" placeholder="Enter Conversation ID" value="test-conversation-frontend">
+            <button onclick="joinConversation()" id="joinBtn" disabled>Join Conversation</button>
+            <button onclick="leaveConversation()" id="leaveBtn" disabled>Leave Conversation</button>
+        </div>
+        <div id="conversationResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Message Test</h2>
+        <div>
+            <input type="text" id="messageInput" placeholder="Enter message" value="Hello from frontend test!">
+            <button onclick="sendMessage()" id="sendBtn" disabled>Send Message</button>
+        </div>
+        <div id="messageResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Typing Indicators Test</h2>
+        <div>
+            <button onclick="startTyping()" id="typingBtn" disabled>Start Typing</button>
+            <button onclick="stopTyping()" id="stopTypingBtn" disabled>Stop Typing</button>
+        </div>
+        <div id="typingResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Event Log</h2>
+        <div class="log" id="eventLog"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        let socket = null;
+        let isAuthenticated = false;
+        let currentConversationId = null;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('eventLog');
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logEntry.style.color = type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#0c5460';
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            const socketIdElement = document.getElementById('socketId');
+            
+            statusElement.textContent = status;
+            statusElement.className = `status ${status.toLowerCase()}`;
+            
+            if (status === 'Connected') {
+                socketIdElement.textContent = socket ? socket.id : '-';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('authBtn').disabled = false;
+            } else {
+                socketIdElement.textContent = '-';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('authBtn').disabled = true;
+                document.getElementById('joinBtn').disabled = true;
+                document.getElementById('leaveBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('typingBtn').disabled = true;
+                document.getElementById('stopTypingBtn').disabled = true;
+            }
+        }
+
+        function connect() {
+            log('🔌 Attempting to connect to Socket.IO server...');
+            updateConnectionStatus('Connecting');
+            
+            socket = io('http://localhost:3001', {
+                path: '/socket.io/',
+                transports: ['websocket', 'polling'],
+                timeout: 5000
+            });
+
+            socket.on('connect', () => {
+                log('✅ Connected to Socket.IO server', 'success');
+                updateConnectionStatus('Connected');
+                addTestResult('authResult', 'Connection Test', true, `Connected with ID: ${socket.id}`);
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`❌ Disconnected: ${reason}`, 'error');
+                updateConnectionStatus('Disconnected');
+                isAuthenticated = false;
+                currentConversationId = null;
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection error: ${error.message}`, 'error');
+                updateConnectionStatus('Disconnected');
+                addTestResult('authResult', 'Connection Test', false, `Connection error: ${error.message}`);
+            });
+
+            socket.on('authenticated', (data) => {
+                log(`✅ Authenticated as: ${data.userId}`, 'success');
+                isAuthenticated = true;
+                document.getElementById('joinBtn').disabled = false;
+                addTestResult('authResult', 'Authentication Test', true, `Authenticated as: ${data.userId}`);
+            });
+
+            socket.on('joined-conversation', (data) => {
+                log(`✅ Joined conversation: ${data.conversationId}`, 'success');
+                currentConversationId = data.conversationId;
+                document.getElementById('leaveBtn').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('typingBtn').disabled = false;
+                document.getElementById('stopTypingBtn').disabled = false;
+                addTestResult('conversationResult', 'Join Conversation Test', true, `Joined: ${data.conversationId}`);
+            });
+
+            socket.on('left-conversation', (data) => {
+                log(`✅ Left conversation: ${data.conversationId}`, 'success');
+                currentConversationId = null;
+                document.getElementById('leaveBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('typingBtn').disabled = true;
+                document.getElementById('stopTypingBtn').disabled = true;
+                addTestResult('conversationResult', 'Leave Conversation Test', true, `Left: ${data.conversationId}`);
+            });
+
+            socket.on('message-received', (data) => {
+                log(`📨 Message received: ${data.message.content}`, 'success');
+                addTestResult('messageResult', 'Message Reception Test', true, `Received: ${data.message.content}`);
+            });
+
+            socket.on('user-typing', (data) => {
+                log(`⌨️ User typing: ${data.userId} (${data.isTyping ? 'started' : 'stopped'})`, 'success');
+                addTestResult('typingResult', 'Typing Indicator Test', true, `User ${data.userId} ${data.isTyping ? 'started' : 'stopped'} typing`);
+            });
+
+            socket.on('error', (error) => {
+                log(`❌ Socket error: ${error.message}`, 'error');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                log('🔌 Disconnected from Socket.IO server');
+            }
+        }
+
+        function authenticate() {
+            const userId = document.getElementById('userIdInput').value;
+            if (!userId) {
+                addTestResult('authResult', 'Authentication Test', false, 'User ID is required');
+                return;
+            }
+            
+            if (!socket || !socket.connected) {
+                addTestResult('authResult', 'Authentication Test', false, 'Not connected to server');
+                return;
+            }
+            
+            log(`🔐 Authenticating as: ${userId}`);
+            socket.emit('authenticate', { userId });
+        }
+
+        function joinConversation() {
+            const conversationId = document.getElementById('conversationIdInput').value;
+            if (!conversationId) {
+                addTestResult('conversationResult', 'Join Conversation Test', false, 'Conversation ID is required');
+                return;
+            }
+            
+            if (!socket || !socket.connected || !isAuthenticated) {
+                addTestResult('conversationResult', 'Join Conversation Test', false, 'Not connected or authenticated');
+                return;
+            }
+            
+            log(`🚪 Joining conversation: ${conversationId}`);
+            socket.emit('join-conversation', { conversationId });
+        }
+
+        function leaveConversation() {
+            if (!socket || !socket.connected || !isAuthenticated || !currentConversationId) {
+                addTestResult('conversationResult', 'Leave Conversation Test', false, 'Not in a conversation');
+                return;
+            }
+            
+            log(`🚪 Leaving conversation: ${currentConversationId}`);
+            socket.emit('leave-conversation', { conversationId: currentConversationId });
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('messageInput').value;
+            if (!message) {
+                addTestResult('messageResult', 'Send Message Test', false, 'Message is required');
+                return;
+            }
+            
+            if (!socket || !socket.connected || !isAuthenticated || !currentConversationId) {
+                addTestResult('messageResult', 'Send Message Test', false, 'Not connected, authenticated, or in conversation');
+                return;
+            }
+            
+            const messageData = {
+                id: 'msg-' + Date.now(),
+                content: message,
+                senderId: document.getElementById('userIdInput').value,
+                conversationId: currentConversationId,
+                timestamp: new Date().toISOString()
+            };
+            
+            log(`📤 Sending message: ${message}`);
+            socket.emit('new-message', { 
+                conversationId: currentConversationId, 
+                message: messageData 
+            });
+            
+            addTestResult('messageResult', 'Send Message Test', true, `Sent: ${message}`);
+        }
+
+        function startTyping() {
+            if (!socket || !socket.connected || !isAuthenticated || !currentConversationId) {
+                addTestResult('typingResult', 'Start Typing Test', false, 'Not connected, authenticated, or in conversation');
+                return;
+            }
+            
+            log('⌨️ Starting typing indicator');
+            socket.emit('typing', { conversationId: currentConversationId });
+            addTestResult('typingResult', 'Start Typing Test', true, 'Typing indicator sent');
+        }
+
+        function stopTyping() {
+            if (!socket || !socket.connected || !isAuthenticated || !currentConversationId) {
+                addTestResult('typingResult', 'Stop Typing Test', false, 'Not connected, authenticated, or in conversation');
+                return;
+            }
+            
+            log('⌨️ Stopping typing indicator');
+            socket.emit('stop-typing', { conversationId: currentConversationId });
+            addTestResult('typingResult', 'Stop Typing Test', true, 'Stop typing indicator sent');
+        }
+
+        function addTestResult(containerId, testName, passed, details) {
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.innerHTML = `<strong>${testName}:</strong> ${passed ? 'PASSED' : 'FAILED'} - ${details}`;
+            container.appendChild(resultDiv);
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            log('🚀 Socket.IO Frontend Test Suite loaded');
+            log('Click "Connect" to start testing');
+        };
+    </script>
+</body>
+</html>

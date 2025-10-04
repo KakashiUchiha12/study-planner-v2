@@ -2,20 +2,21 @@ import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
 import { ClientProviders } from "@/components/client-providers"
+import { GlobalNavigationBar } from "@/components/navigation/GlobalNavigationBar"
 
 export const metadata: Metadata = {
-  title: "StudyPlanner - Organize Your Academic Success",
+  title: "StudyHi - Welcome to Learning",
   description:
-    "A comprehensive study planner app for students to track subjects, syllabus, test marks, and study sessions.",
+    "A comprehensive study platform for students to track subjects, syllabus, test marks, and study sessions.",
   generator: "v0.app",
   formatDetection: {
     telephone: false,
   },
   openGraph: {
     type: "website",
-    siteName: "StudyPlanner",
-    title: "StudyPlanner - Organize Your Academic Success",
-    description: "A comprehensive study planner app for students to track subjects, syllabus, test marks, and study sessions.",
+    siteName: "StudyHi",
+    title: "StudyHi - Welcome to Learning",
+    description: "A comprehensive study platform for students to track subjects, syllabus, test marks, and study sessions.",
   },
   icons: {
     icon: [
@@ -110,7 +111,10 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <ClientProviders>
-          {children}
+          <GlobalNavigationBar />
+          <main className="pt-16">
+            {children}
+          </main>
         </ClientProviders>
       </body>
     </html>

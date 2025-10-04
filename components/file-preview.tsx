@@ -14,6 +14,7 @@ import {
   Volume2,
   VolumeX
 } from "lucide-react"
+import { FileThumbnail } from '@/components/file-thumbnail'
 
 // Import PDF.js
 // PDF.js will be loaded dynamically when needed
@@ -365,10 +366,18 @@ export function FilePreview({
           
           {/* PowerPoint Content */}
           <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 p-8">
-            <div className="text-6xl mb-6">📊</div>
+            {/* PowerPoint Thumbnail */}
+            <div className="w-80 h-60 mb-6 rounded-lg overflow-hidden shadow-lg border">
+              <FileThumbnail
+                fileUrl={file.url}
+                fileName={file.name}
+                fileType={file.type}
+                className="w-full h-full"
+              />
+            </div>
             <p className="text-lg font-medium text-center mb-4 max-w-md">{file.name}</p>
             <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
-              Preview not available for PowerPoint files. You can download the file to view it in Microsoft PowerPoint or compatible applications.
+              PowerPoint presentation preview. Download to view in Microsoft PowerPoint or compatible applications.
             </p>
             <Button onClick={handleDownload} size="lg">
               <Download className="h-4 w-4 mr-2" />

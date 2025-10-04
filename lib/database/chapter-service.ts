@@ -59,22 +59,62 @@ export class ChapterService {
   // Create a new chapter
   async createChapter(data: CreateChapterData): Promise<Chapter> {
     try {
+      console.log('[ChapterService] Creating chapter with data:', data)
+      
+      // If no order specified, calculate the next available order
+      let order = data.order
+      if (order === undefined) {
+        const lastChapter = await this.prisma.chapter.findFirst({
+          where: { subjectId: data.subjectId },
+          orderBy: { order: 'desc' }
+        })
+        order = lastChapter ? lastChapter.order + 1 : 1
+        console.log('[ChapterService] Auto-calculated order:', order)
+      } else {
+        // Check if the specified order already exists
+        const existingChapter = await this.prisma.chapter.findFirst({
+          where: { 
+            subjectId: data.subjectId,
+            order: order
+          }
+        })
+        
+        if (existingChapter) {
+          // If order exists, find the next available order
+          const lastChapter = await this.prisma.chapter.findFirst({
+            where: { subjectId: data.subjectId },
+            orderBy: { order: 'desc' }
+          })
+          order = lastChapter ? lastChapter.order + 1 : 1
+          console.log('[ChapterService] Order conflict detected, using next available order:', order)
+        }
+      }
+
       const chapter = await this.prisma.chapter.create({
         data: {
           subjectId: data.subjectId,
           title: data.title,
           description: data.description || '',
-          order: data.order,
+          order: order,
           estimatedHours: data.estimatedHours || 2
         }
       })
 
+      console.log('[ChapterService] Chapter created successfully:', chapter)
+
       // Update subject progress automatically
+      console.log('[ChapterService] Updating subject progress...')
       await subjectService.updateSubjectProgressFromChapters(data.subjectId)
+      console.log('[ChapterService] Subject progress updated successfully')
 
       return chapter
     } catch (error) {
-      console.error('Failed to create chapter:', error)
+      console.error('[ChapterService] Failed to create chapter:', error)
+      console.error('[ChapterService] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        data: data
+      })
       throw new Error('Failed to create chapter')
     }
   }
@@ -82,7 +122,51 @@ export class ChapterService {
   // Update an existing chapter
   async updateChapter(chapterId: string, data: UpdateChapterData): Promise<Chapter> {
     try {
-      return await this.prisma.chapter.update({
+      console.log('[ChapterService] Updating chapter with data:', { chapterId, data })
+      
+      // Get the current chapter to check its subject
+      const currentChapter = await this.prisma.chapter.findUnique({
+        where: { id: chapterId }
+      })
+
+      if (!currentChapter) {
+        throw new Error('Chapter not found')
+      }
+
+      // If order is being updated, handle potential conflicts
+      if (data.order !== undefined && data.order !== currentChapter.order) {
+        console.log('[ChapterService] Order is being updated, checking for conflicts...')
+        
+        // Check if another chapter already has this order
+        const conflictingChapter = await this.prisma.chapter.findFirst({
+          where: { 
+            subjectId: currentChapter.subjectId,
+            order: data.order,
+            id: { not: chapterId } // Exclude current chapter
+          }
+        })
+
+        if (conflictingChapter) {
+          console.log('[ChapterService] Order conflict detected, swapping orders...')
+          
+          // Swap the orders: temporarily set conflicting chapter to a high number
+          const maxOrder = await this.prisma.chapter.findFirst({
+            where: { subjectId: currentChapter.subjectId },
+            orderBy: { order: 'desc' }
+          })
+          const tempOrder = (maxOrder?.order || 0) + 1
+          
+          // Update conflicting chapter to temp order
+          await this.prisma.chapter.update({
+            where: { id: conflictingChapter.id },
+            data: { order: tempOrder }
+          })
+          
+          console.log('[ChapterService] Swapped orders, updating current chapter...')
+        }
+      }
+
+      const updatedChapter = await this.prisma.chapter.update({
         where: { id: chapterId },
         data: {
           title: data.title,
@@ -92,9 +176,40 @@ export class ChapterService {
           isCompleted: data.isCompleted
         }
       })
+
+      console.log('[ChapterService] Chapter updated successfully:', updatedChapter)
+      return updatedChapter
     } catch (error) {
-      console.error('Failed to update chapter:', error)
+      console.error('[ChapterService] Failed to update chapter:', error)
+      console.error('[ChapterService] Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        chapterId,
+        data
+      })
       throw new Error('Failed to update chapter')
+    }
+  }
+
+  // Reorder chapters in bulk (for drag and drop)
+  async reorderChapters(subjectId: string, chapterOrders: { id: string; order: number }[]): Promise<void> {
+    try {
+      console.log('[ChapterService] Reordering chapters:', { subjectId, chapterOrders })
+      
+      // Use a transaction to ensure all updates succeed or fail together
+      await this.prisma.$transaction(async (prisma) => {
+        for (const { id, order } of chapterOrders) {
+          await prisma.chapter.update({
+            where: { id },
+            data: { order }
+          })
+        }
+      })
+      
+      console.log('[ChapterService] Chapters reordered successfully')
+    } catch (error) {
+      console.error('[ChapterService] Failed to reorder chapters:', error)
+      throw new Error('Failed to reorder chapters')
     }
   }
 
@@ -149,22 +264,6 @@ export class ChapterService {
     }
   }
 
-  // Reorder chapters
-  async reorderChapters(subjectId: string, chapterOrders: { id: string; order: number }[]): Promise<void> {
-    try {
-      const updates = chapterOrders.map(({ id, order }) =>
-        this.prisma.chapter.update({
-          where: { id },
-          data: { order }
-        })
-      )
-
-      await this.prisma.$transaction(updates)
-    } catch (error) {
-      console.error('Failed to reorder chapters:', error)
-      throw new Error('Failed to reorder chapters')
-    }
-  }
 
   // Get chapter count for a subject
   async getChapterCount(subjectId: string): Promise<{ total: number; completed: number }> {

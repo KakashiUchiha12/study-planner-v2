@@ -1,2 +1,2 @@
-// Re-export the mock session hook
-export { useSession } from './use-mock-session'
+// Re-export the real NextAuth session hook
+export { useSession } from 'next-auth/react'

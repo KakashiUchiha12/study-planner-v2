@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
             <div className="flex justify-center">
               <div className="flex items-center space-x-2">
                 <BookOpen className="h-8 w-8 text-primary" />
-                <span className="text-2xl font-bold text-foreground">StudyPlanner</span>
+                <span className="text-2xl font-bold text-foreground">StudyHi</span>
               </div>
             </div>
           </div>

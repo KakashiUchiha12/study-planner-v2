@@ -1,22 +1,33 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { BookOpen, Target, TrendingUp, Clock, CheckCircle, Users, Star, ArrowRight, Play, ExternalLink } from "lucide-react"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { 
+  CheckCircle, 
+  TrendingUp, 
+  Clock, 
+  Play, 
+  BookOpen, 
+  Target, 
+  Star, 
+  Users, 
+  ExternalLink, 
+  ArrowRight 
+} from "lucide-react";
 
 export default function HomePage() {
   console.log('🏠 HomePage: Rendering home page component');
   
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="mx-auto max-w-7xl px-6 pb-32 pt-16 sm:pt-24 lg:px-8 lg:pt-32">
           <div className="mx-auto max-w-2xl gap-x-14 lg:mx-0 lg:flex lg:max-w-none lg:items-center">
             <div className="w-full max-w-xl lg:shrink-0 xl:max-w-2xl">
               <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-                Master Your Studies with <span className="text-primary">StudyPlanner</span>
+                <span className="text-primary">StudyHi</span> - Welcome to Learning
               </h1>
               <p className="relative mt-6 text-lg leading-8 text-muted-foreground sm:max-w-md lg:max-w-none">
-                Organize your academic journey with our comprehensive study planner. Track subjects, monitor progress,
+                Transform your learning journey with our comprehensive study platform. Track subjects, monitor progress,
                 log study sessions, and analyze your performance to achieve academic excellence.
               </p>
               <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 sm:gap-x-6">
@@ -71,7 +82,7 @@ export default function HomePage() {
             Interactive Demo
           </p>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            Experience StudyPlanner's features firsthand with our interactive demo.
+            Experience StudyHi's features firsthand with our interactive demo.
           </p>
         </div>
         
@@ -157,7 +168,7 @@ export default function HomePage() {
             Comprehensive Study Management
           </p>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            From subject organization to progress analytics, StudyPlanner provides all the tools you need to excel in
+            From subject organization to progress analytics, StudyHi provides all the tools you need to excel in
             your academic journey.
           </p>
         </div>
@@ -232,7 +243,7 @@ export default function HomePage() {
                 ))}
               </div>
               <p className="text-muted-foreground mb-4">
-                "StudyPlanner helped me organize my medical school studies. The progress tracking keeps me motivated!"
+                "StudyHi helped me organize my medical school studies. The progress tracking keeps me motivated!"
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
@@ -367,7 +378,7 @@ export default function HomePage() {
             Ready to transform your study routine?
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-            Join thousands of students who have improved their academic performance with StudyPlanner.
+            Join thousands of students who have improved their academic performance with StudyHi.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-6">
             <Link href="/auth/signup">
@@ -390,9 +401,9 @@ export default function HomePage() {
         <div className="border-t border-border pt-16 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
-              <h3 className="font-semibold mb-4">StudyPlanner</h3>
+              <h3 className="font-semibold mb-4">StudyHi</h3>
               <p className="text-sm text-muted-foreground">
-                Your comprehensive academic companion for organized and effective studying.
+                Welcome to Learning - Your comprehensive academic companion for organized and effective studying.
               </p>
             </div>
             <div>
@@ -412,7 +423,7 @@ export default function HomePage() {
             </div>
           </div>
           <p className="text-center text-sm leading-5 text-muted-foreground">
-            &copy; 2024 StudyPlanner. Built with passion for student success.
+            &copy; 2024 StudyHi. Built with passion for student success.
           </p>
         </div>
       </footer>

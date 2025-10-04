@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Browser WebSocket Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        .warning { background: #fff3e0; color: #ef6c00; }
+        button { padding: 10px 20px; margin: 5px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1976d2; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .browser-info { background: #e8f5e8; padding: 15px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Browser WebSocket Debug</h1>
+    
+    <div class="browser-info">
+        <h3>Browser Information:</h3>
+        <div id="browserInfo"></div>
+    </div>
+    
+    <div>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <button id="testBtn" onclick="testConnection()" disabled>Test Connection</button>
+        <button id="clearBtn" onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="status" class="log info">Not connected</div>
+    <div id="log"></div>
+    
+    <script>
+        let ws = null;
+        let connectionAttempts = 0;
+        
+        // Display browser information
+        function displayBrowserInfo() {
+            const info = document.getElementById('browserInfo');
+            info.innerHTML = `
+                <strong>User Agent:</strong> ${navigator.userAgent}<br>
+                <strong>WebSocket Support:</strong> ${typeof WebSocket !== 'undefined' ? '✅ Yes' : '❌ No'}<br>
+                <strong>Protocol:</strong> ${window.location.protocol}<br>
+                <strong>Host:</strong> ${window.location.host}<br>
+                <strong>Origin:</strong> ${window.location.origin}<br>
+                <strong>Cookies Enabled:</strong> ${navigator.cookieEnabled ? '✅ Yes' : '❌ No'}<br>
+                <strong>Online Status:</strong> ${navigator.onLine ? '✅ Online' : '❌ Offline'}
+            `;
+        }
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `log ${type}`;
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addLog('Already connected', 'warning');
+                return;
+            }
+            
+            connectionAttempts++;
+            addLog(`Connection attempt #${connectionAttempts}`, 'info');
+            updateStatus('Connecting...', 'info');
+            
+            // Test different WebSocket URLs
+            const urls = [
+                'ws://localhost:3000/api/ws',
+                'ws://127.0.0.1:3000/api/ws',
+                'ws://localhost:3000/api/ws?test=1'
+            ];
+            
+            const url = urls[0]; // Start with the first URL
+            addLog(`Trying URL: ${url}`, 'info');
+            
+            try {
+                ws = new WebSocket(url);
+                
+                // Log WebSocket object details
+                addLog(`WebSocket object created: ${ws.constructor.name}`, 'info');
+                addLog(`Initial readyState: ${ws.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)`, 'info');
+                
+                ws.onopen = function(event) {
+                    addLog('✅ WebSocket opened successfully', 'success');
+                    addLog(`ReadyState after open: ${ws.readyState}`, 'success');
+                    updateStatus('Connected', 'success');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('testBtn').disabled = false;
+                };
+                
+                ws.onmessage = function(event) {
+                    addLog(`📨 Message received: ${event.data}`, 'success');
+                };
+                
+                ws.onclose = function(event) {
+                    addLog(`❌ WebSocket closed - Code: ${event.code}, Reason: "${event.reason}", Clean: ${event.wasClean}`, 'error');
+                    addLog(`ReadyState after close: ${ws.readyState}`, 'error');
+                    updateStatus(`Disconnected (Code: ${event.code})`, 'error');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    document.getElementById('testBtn').disabled = true;
+                    
+                    // Log common error codes
+                    if (event.code === 1006) {
+                        addLog('💡 Code 1006: Abnormal closure - usually network/browser issue', 'warning');
+                    } else if (event.code === 1000) {
+                        addLog('💡 Code 1000: Normal closure', 'info');
+                    } else if (event.code === 1001) {
+                        addLog('💡 Code 1001: Going away', 'warning');
+                    } else if (event.code === 1002) {
+                        addLog('💡 Code 1002: Protocol error', 'error');
+                    } else if (event.code === 1003) {
+                        addLog('💡 Code 1003: Unsupported data', 'error');
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    addLog(`❌ WebSocket error: ${error}`, 'error');
+                    addLog(`ReadyState during error: ${ws.readyState}`, 'error');
+                    console.error('WebSocket error details:', error);
+                };
+                
+            } catch (error) {
+                addLog(`❌ Failed to create WebSocket: ${error.message}`, 'error');
+                updateStatus('Connection failed', 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                addLog('Manually closing connection...', 'info');
+                ws.close(1000, 'User disconnected');
+                ws = null;
+            }
+        }
+        
+        function testConnection() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = JSON.stringify({ type: 'ping', timestamp: Date.now() });
+                ws.send(message);
+                addLog(`📤 Sent test message: ${message}`, 'info');
+            } else {
+                addLog('Cannot send message - connection not open', 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            displayBrowserInfo();
+            addLog('🚀 Browser debug page loaded', 'info');
+            addLog('Click "Connect" to test WebSocket connection', 'info');
+        };
+    </script>
+</body>
+</html>

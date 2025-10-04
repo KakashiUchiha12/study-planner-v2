@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .connecting { background-color: #fff3cd; color: #856404; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Connection Test</h1>
+        
+        <div id="status" class="status disconnected">Disconnected</div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="connectionCount">0</div>
+                <div class="stat-label">Connection Attempts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="messageCount">0</div>
+                <div class="stat-label">Messages Received</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="uptime">00:00:00</div>
+                <div class="stat-label">Connection Uptime</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="lastPing">Never</div>
+                <div class="stat-label">Last Ping</div>
+            </div>
+        </div>
+        
+        <div>
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="clearLogBtn" onclick="clearLog()">Clear Log</button>
+            <button id="testPingBtn" onclick="testPing()" disabled>Test Ping</button>
+        </div>
+        
+        <h3>Connection Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let connectionCount = 0;
+        let messageCount = 0;
+        let startTime = null;
+        let uptimeInterval = null;
+        let lastPingTime = null;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(status, className) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = status;
+            statusDiv.className = `status ${className}`;
+        }
+
+        function updateStats() {
+            document.getElementById('connectionCount').textContent = connectionCount;
+            document.getElementById('messageCount').textContent = messageCount;
+            
+            if (startTime) {
+                const uptime = Math.floor((Date.now() - startTime) / 1000);
+                const hours = Math.floor(uptime / 3600);
+                const minutes = Math.floor((uptime % 3600) / 60);
+                const seconds = uptime % 60;
+                document.getElementById('uptime').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            if (lastPingTime) {
+                const timeSince = Math.floor((Date.now() - lastPingTime) / 1000);
+                document.getElementById('lastPing').textContent = `${timeSince}s ago`;
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected');
+                return;
+            }
+
+            connectionCount++;
+            updateStatus('Connecting...', 'connecting');
+            log(`Connection attempt #${connectionCount}`);
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function(event) {
+                updateStatus('Connected', 'connected');
+                log('✅ Connected successfully');
+                startTime = Date.now();
+                uptimeInterval = setInterval(updateStats, 1000);
+                
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('testPingBtn').disabled = false;
+            };
+            
+            ws.onmessage = function(event) {
+                messageCount++;
+                try {
+                    const message = JSON.parse(event.data);
+                    log(`📨 Received: ${message.type} ${message.connectionId ? `(ID: ${message.connectionId})` : ''}`);
+                    
+                    if (message.type === 'pong') {
+                        lastPingTime = Date.now();
+                    }
+                } catch (error) {
+                    log(`📨 Received (raw): ${event.data}`);
+                }
+                updateStats();
+            };
+            
+            ws.onclose = function(event) {
+                updateStatus('Disconnected', 'disconnected');
+                log(`❌ Disconnected (Code: ${event.code}, Reason: ${event.reason || 'No reason'})`);
+                
+                if (uptimeInterval) {
+                    clearInterval(uptimeInterval);
+                    uptimeInterval = null;
+                }
+                
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('testPingBtn').disabled = true;
+                
+                // Auto-reconnect after 3 seconds
+                setTimeout(() => {
+                    if (!ws || ws.readyState === WebSocket.CLOSED) {
+                        log('🔄 Auto-reconnecting...');
+                        connect();
+                    }
+                }, 3000);
+            };
+            
+            ws.onerror = function(error) {
+                log(`❌ Error: ${error}`);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'User disconnected');
+                ws = null;
+            }
+        }
+
+        function testPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+                log('📤 Sent ping');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            log('🚀 WebSocket test page loaded');
+            connect();
+        };
+
+        // Update stats every second
+        setInterval(updateStats, 1000);
+    </script>
+</body>
+</html>

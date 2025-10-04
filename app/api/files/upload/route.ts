@@ -33,17 +33,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size (max 50MB)
-    const maxSize = 50 * 1024 * 1024 // 50MB
+    // Validate file size (max 250MB)
+    const maxSize = 250 * 1024 * 1024 // 250MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File size too large. Maximum size is 50MB' },
+        { error: 'File size too large. Maximum size is 250MB' },
         { status: 400 }
       )
     }
 
-    // Validate file type
+    // Validate file type - Allow all common file types
     const allowedTypes = [
+      // Documents
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -51,17 +52,66 @@ export async function POST(request: NextRequest) {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-powerpoint',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.oasis.opendocument.text',
+      'application/vnd.oasis.opendocument.spreadsheet',
+      'application/vnd.oasis.opendocument.presentation',
+      'application/rtf',
       'text/plain',
       'text/markdown',
+      'text/csv',
+      'application/json',
+      'application/xml',
+      'text/xml',
+      
+      // Images
       'image/jpeg',
+      'image/jpg',
       'image/png',
       'image/gif',
       'image/webp',
+      'image/svg+xml',
+      'image/bmp',
+      'image/tiff',
+      'image/ico',
+      
+      // Videos
       'video/mp4',
       'video/webm',
+      'video/avi',
+      'video/mov',
+      'video/wmv',
+      'video/flv',
+      'video/mkv',
+      'video/quicktime',
+      
+      // Audio
       'audio/mpeg',
       'audio/wav',
-      'audio/ogg'
+      'audio/ogg',
+      'audio/mp3',
+      'audio/aac',
+      'audio/flac',
+      'audio/m4a',
+      
+      // Archives
+      'application/zip',
+      'application/x-rar-compressed',
+      'application/x-7z-compressed',
+      'application/x-tar',
+      'application/gzip',
+      
+      // Code files
+      'text/javascript',
+      'text/typescript',
+      'text/css',
+      'text/html',
+      'application/javascript',
+      'application/typescript',
+      
+      // Other common formats
+      'application/octet-stream', // Generic binary files
+      'application/x-binary',
+      'text/plain'
     ]
 
     if (!allowedTypes.includes(file.type)) {

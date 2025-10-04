@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { BookOpen, FileText, Clock, BarChart3 } from "lucide-react"
+import { BookOpen, FileText, Clock, BarChart3, MessageCircle } from "lucide-react"
 import Link from "next/link"
 
 export function QuickActions() {
@@ -10,6 +10,13 @@ export function QuickActions() {
       icon: BookOpen,
       color: "bg-primary text-primary-foreground hover:bg-primary/90",
       href: "/subjects",
+    },
+    {
+      title: "Messages",
+      description: "Chat with study partners",
+      icon: MessageCircle,
+      color: "bg-blue-500 text-white hover:bg-blue-500/90",
+      href: "/messaging",
     },
     {
       title: "Log Study Session",

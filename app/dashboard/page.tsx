@@ -13,12 +13,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TimePicker } from '@/components/ui/time-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Clock, BookOpen, Plus, CheckCircle2, FileText, BarChart3, Flag, Search, Settings, LogOut, ChevronDown, X, User, CalendarIcon, Timer, Zap } from 'lucide-react'
+import { Clock, BookOpen, Plus, CheckCircle2, FileText, BarChart3, Flag, Search, Settings, LogOut, ChevronDown, X, User, CalendarIcon, Timer, Zap, MessageCircle } from 'lucide-react'
 import { useSubjects, useTasks, useStudySessions, useTestMarks } from '@/hooks'
 import { useProfile } from '@/hooks/useProfile'
 import { useUserSettings } from '@/hooks/useUserSettings'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { OfflineStatus } from '@/components/offline-status'
+import { NotificationBadge } from '@/components/ui/notification-badge'
+import { useMessageNotifications } from '@/lib/hooks/useMessageNotifications'
 import { ExpandableSection } from '@/components/expandable-section'
 import { TaskManager } from '@/components/tasks/task-manager'
 import { ClientOnly } from '@/components/client-only'
@@ -331,6 +333,9 @@ export default function DashboardPage() {
 
   // Use the new user settings hook
   const { getSetting, settings } = useUserSettings()
+  
+  // Use message notifications hook for badge
+  const { unreadCount: messageUnreadCount } = useMessageNotifications()
 
   // Force dashboard refresh when settings change
   useEffect(() => {
@@ -1010,56 +1015,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Enhanced Minimal Header with Glass Effect - Mobile Optimized */}
-      <header className="glass-effect border-b border-border/50 sticky top-0 z-40">
-        <div className="container-responsive py-3 sm:py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2 sm:space-x-3 animate-slide-in-right">
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-primary to-primary/80 rounded-lg shadow-sm">
-              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="text-lg sm:text-heading-2 font-semibold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                StudyPlanner
-              </span>
-              <p className="text-xs text-muted-foreground hidden sm:block">Your academic companion</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-1 sm:space-x-2">
-            <NotificationCenter />
-            <OfflineStatus showDetails={true} />
-            <ThemeToggle />
-            <Link href="/settings">
-              <Button variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 focus-ring">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="h-8 w-8 sm:h-9 sm:w-9 p-0 focus-ring">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        {/* Enhanced Search Bar - Mobile Optimized */}
-        <div className="border-t border-border/30 bg-gradient-to-r from-muted/20 to-muted/10">
-          <div className="container-responsive py-2 sm:py-3">
-            <div className="relative animate-fade-in-up">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tasks, subjects, study sessions..."
-                className="input-enhanced pl-10 shadow-sm h-10 sm:h-11 text-sm sm:text-base"
-                onChange={(e) => {
-                  // Implement search functionality
-                  const query = e.target.value.toLowerCase()
-                  // You can add search logic here to filter content
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container-responsive py-6 sm:py-8 md:py-12">
+      <div className="container-responsive py-6 sm:py-8 md:py-12">
         {/* Enhanced Primary Focus View - Mobile Optimized */}
         <div className="text-center space-y-8 sm:space-y-12 animate-fade-in-up">
           <div className="space-y-4 sm:space-y-6">
@@ -1912,20 +1868,7 @@ export default function DashboardPage() {
 
 
         </div>
-      </main>
-
-      {/* Back to Top Button - Mobile Optimized */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-4 right-4 z-50 rounded-full h-12 w-12 p-0 bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg hover:bg-background/90 hover:shadow-xl transition-all duration-200 focus-ring md:hidden"
-        title="Back to Top"
-      >
-        <ChevronDown className="h-5 w-5 rotate-180" />
-      </Button>
-
-
+      </div>
 
       {/* Enhanced Study Timer Component */}
       <StudyTimer 

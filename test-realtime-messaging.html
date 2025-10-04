@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Messaging Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .user-panel {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .user-panel h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .user1 { border-left: 4px solid #007bff; }
+        .user2 { border-left: 4px solid #28a745; }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .status.connecting { background-color: #fff3cd; color: #856404; }
+        .messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 4px;
+            max-width: 80%;
+        }
+        .message.sent {
+            background-color: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .message.received {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .message.system {
+            background-color: #fff3cd;
+            color: #856404;
+            text-align: center;
+            font-style: italic;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            margin: 5px 0;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Real-Time Messaging Test</h1>
+    <p>This test simulates two users chatting in real-time to verify Socket.IO functionality.</p>
+    
+    <div class="container">
+        <div class="user-panel user1">
+            <h2>👤 User 1 (Blue)</h2>
+            <div>
+                Status: <span id="user1Status" class="status disconnected">Disconnected</span>
+                <button id="user1Connect" onclick="connectUser1()" class="btn-primary">Connect</button>
+                <button id="user1Disconnect" onclick="disconnectUser1()" class="btn-secondary" disabled>Disconnect</button>
+            </div>
+            <div>
+                <button id="user1Auth" onclick="authenticateUser1()" class="btn-success" disabled>Authenticate</button>
+                <button id="user1Join" onclick="joinConversation1()" class="btn-success" disabled>Join Conversation</button>
+            </div>
+            <div class="messages" id="user1Messages"></div>
+            <div class="input-group">
+                <input type="text" id="user1Input" placeholder="Type a message..." disabled>
+                <button id="user1Send" onclick="sendMessage1()" class="btn-primary" disabled>Send</button>
+            </div>
+            <div id="user1Typing" class="typing-indicator" style="display: none;"></div>
+            <div class="log" id="user1Log"></div>
+        </div>
+
+        <div class="user-panel user2">
+            <h2>👤 User 2 (Green)</h2>
+            <div>
+                Status: <span id="user2Status" class="status disconnected">Disconnected</span>
+                <button id="user2Connect" onclick="connectUser2()" class="btn-primary">Connect</button>
+                <button id="user2Disconnect" onclick="disconnectUser2()" class="btn-secondary" disabled>Disconnect</button>
+            </div>
+            <div>
+                <button id="user2Auth" onclick="authenticateUser2()" class="btn-success" disabled>Authenticate</button>
+                <button id="user2Join" onclick="joinConversation2()" class="btn-success" disabled>Join Conversation</button>
+            </div>
+            <div class="messages" id="user2Messages"></div>
+            <div class="input-group">
+                <input type="text" id="user2Input" placeholder="Type a message..." disabled>
+                <button id="user2Send" onclick="sendMessage2()" class="btn-primary" disabled>Send</button>
+            </div>
+            <div id="user2Typing" class="typing-indicator" style="display: none;"></div>
+            <div class="log" id="user2Log"></div>
+        </div>
+    </div>
+
+    <script>
+        const CONVERSATION_ID = 'test-realtime-conversation';
+        const USER1_ID = 'test-user-1-realtime';
+        const USER2_ID = 'test-user-2-realtime';
+        
+        let user1Socket = null;
+        let user2Socket = null;
+        let user1Authenticated = false;
+        let user2Authenticated = false;
+        let user1InConversation = false;
+        let user2InConversation = false;
+
+        function log(user, message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById(`${user}Log`);
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logEntry.style.color = type === 'error' ? '#721c24' : type === 'success' ? '#155724' : '#0c5460';
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function addMessage(user, content, type = 'received') {
+            const messagesElement = document.getElementById(`${user}Messages`);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = content;
+            messagesElement.appendChild(messageDiv);
+            messagesElement.scrollTop = messagesElement.scrollHeight;
+        }
+
+        function updateStatus(user, status) {
+            const statusElement = document.getElementById(`${user}Status`);
+            statusElement.textContent = status;
+            statusElement.className = `status ${status.toLowerCase()}`;
+        }
+
+        function updateButtons(user, connected, authenticated, inConversation) {
+            const connectBtn = document.getElementById(`${user}Connect`);
+            const disconnectBtn = document.getElementById(`${user}Disconnect`);
+            const authBtn = document.getElementById(`${user}Auth`);
+            const joinBtn = document.getElementById(`${user}Join`);
+            const input = document.getElementById(`${user}Input`);
+            const sendBtn = document.getElementById(`${user}Send`);
+
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+            authBtn.disabled = !connected || authenticated;
+            joinBtn.disabled = !authenticated || inConversation;
+            input.disabled = !inConversation;
+            sendBtn.disabled = !inConversation;
+        }
+
+        // User 1 Functions
+        function connectUser1() {
+            log('user1', '🔌 Connecting User 1...');
+            updateStatus('user1', 'Connecting');
+            
+            user1Socket = io('http://localhost:3001', {
+                path: '/socket.io/',
+                transports: ['websocket', 'polling']
+            });
+
+            user1Socket.on('connect', () => {
+                log('user1', `✅ Connected with ID: ${user1Socket.id}`, 'success');
+                updateStatus('user1', 'Connected');
+                updateButtons('user1', true, false, false);
+            });
+
+            user1Socket.on('disconnect', (reason) => {
+                log('user1', `❌ Disconnected: ${reason}`, 'error');
+                updateStatus('user1', 'Disconnected');
+                user1Authenticated = false;
+                user1InConversation = false;
+                updateButtons('user1', false, false, false);
+            });
+
+            user1Socket.on('authenticated', (data) => {
+                log('user1', `✅ Authenticated as: ${data.userId}`, 'success');
+                user1Authenticated = true;
+                updateButtons('user1', true, true, false);
+            });
+
+            user1Socket.on('joined-conversation', (data) => {
+                log('user1', `✅ Joined conversation: ${data.conversationId}`, 'success');
+                user1InConversation = true;
+                updateButtons('user1', true, true, true);
+                addMessage('user1', `Joined conversation ${data.conversationId}`, 'system');
+            });
+
+            user1Socket.on('message-received', (data) => {
+                log('user1', `📨 Received message: ${data.message.content}`, 'success');
+                addMessage('user1', `${data.senderId}: ${data.message.content}`, 'received');
+            });
+
+            user1Socket.on('user-typing', (data) => {
+                if (data.userId !== USER1_ID) {
+                    const typingElement = document.getElementById('user1Typing');
+                    if (data.isTyping) {
+                        typingElement.textContent = `${data.userId} is typing...`;
+                        typingElement.style.display = 'block';
+                    } else {
+                        typingElement.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function disconnectUser1() {
+            if (user1Socket) {
+                user1Socket.disconnect();
+                user1Socket = null;
+                log('user1', '🔌 Disconnected User 1');
+            }
+        }
+
+        function authenticateUser1() {
+            if (user1Socket && user1Socket.connected) {
+                log('user1', `🔐 Authenticating as: ${USER1_ID}`);
+                user1Socket.emit('authenticate', { userId: USER1_ID });
+            }
+        }
+
+        function joinConversation1() {
+            if (user1Socket && user1Socket.connected && user1Authenticated) {
+                log('user1', `🚪 Joining conversation: ${CONVERSATION_ID}`);
+                user1Socket.emit('join-conversation', { conversationId: CONVERSATION_ID });
+            }
+        }
+
+        function sendMessage1() {
+            const input = document.getElementById('user1Input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const messageData = {
+                id: 'msg-' + Date.now(),
+                content: message,
+                senderId: USER1_ID,
+                conversationId: CONVERSATION_ID,
+                timestamp: new Date().toISOString()
+            };
+
+            log('user1', `📤 Sending message: ${message}`);
+            user1Socket.emit('new-message', { 
+                conversationId: CONVERSATION_ID, 
+                message: messageData 
+            });
+
+            addMessage('user1', message, 'sent');
+            input.value = '';
+        }
+
+        // User 2 Functions
+        function connectUser2() {
+            log('user2', '🔌 Connecting User 2...');
+            updateStatus('user2', 'Connecting');
+            
+            user2Socket = io('http://localhost:3001', {
+                path: '/socket.io/',
+                transports: ['websocket', 'polling']
+            });
+
+            user2Socket.on('connect', () => {
+                log('user2', `✅ Connected with ID: ${user2Socket.id}`, 'success');
+                updateStatus('user2', 'Connected');
+                updateButtons('user2', true, false, false);
+            });
+
+            user2Socket.on('disconnect', (reason) => {
+                log('user2', `❌ Disconnected: ${reason}`, 'error');
+                updateStatus('user2', 'Disconnected');
+                user2Authenticated = false;
+                user2InConversation = false;
+                updateButtons('user2', false, false, false);
+            });
+
+            user2Socket.on('authenticated', (data) => {
+                log('user2', `✅ Authenticated as: ${data.userId}`, 'success');
+                user2Authenticated = true;
+                updateButtons('user2', true, true, false);
+            });
+
+            user2Socket.on('joined-conversation', (data) => {
+                log('user2', `✅ Joined conversation: ${data.conversationId}`, 'success');
+                user2InConversation = true;
+                updateButtons('user2', true, true, true);
+                addMessage('user2', `Joined conversation ${data.conversationId}`, 'system');
+            });
+
+            user2Socket.on('message-received', (data) => {
+                log('user2', `📨 Received message: ${data.message.content}`, 'success');
+                addMessage('user2', `${data.senderId}: ${data.message.content}`, 'received');
+            });
+
+            user2Socket.on('user-typing', (data) => {
+                if (data.userId !== USER2_ID) {
+                    const typingElement = document.getElementById('user2Typing');
+                    if (data.isTyping) {
+                        typingElement.textContent = `${data.userId} is typing...`;
+                        typingElement.style.display = 'block';
+                    } else {
+                        typingElement.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function disconnectUser2() {
+            if (user2Socket) {
+                user2Socket.disconnect();
+                user2Socket = null;
+                log('user2', '🔌 Disconnected User 2');
+            }
+        }
+
+        function authenticateUser2() {
+            if (user2Socket && user2Socket.connected) {
+                log('user2', `🔐 Authenticating as: ${USER2_ID}`);
+                user2Socket.emit('authenticate', { userId: USER2_ID });
+            }
+        }
+
+        function joinConversation2() {
+            if (user2Socket && user2Socket.connected && user2Authenticated) {
+                log('user2', `🚪 Joining conversation: ${CONVERSATION_ID}`);
+                user2Socket.emit('join-conversation', { conversationId: CONVERSATION_ID });
+            }
+        }
+
+        function sendMessage2() {
+            const input = document.getElementById('user2Input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const messageData = {
+                id: 'msg-' + Date.now(),
+                content: message,
+                senderId: USER2_ID,
+                conversationId: CONVERSATION_ID,
+                timestamp: new Date().toISOString()
+            };
+
+            log('user2', `📤 Sending message: ${message}`);
+            user2Socket.emit('new-message', { 
+                conversationId: CONVERSATION_ID, 
+                message: messageData 
+            });
+
+            addMessage('user2', message, 'sent');
+            input.value = '';
+        }
+
+        // Auto-connect both users on page load
+        window.onload = function() {
+            log('user1', '🚀 Real-Time Messaging Test loaded');
+            log('user2', '🚀 Real-Time Messaging Test loaded');
+            log('user1', 'Click "Connect" buttons to start testing');
+            log('user2', 'Click "Connect" buttons to start testing');
+        };
+    </script>
+</body>
+</html>

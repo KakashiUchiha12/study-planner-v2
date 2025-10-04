@@ -25,9 +25,12 @@ export async function PUT(
     const session = await getServerSession(authOptions)
     userId = (session?.user as any)?.id
 
-    // If no session, use demo user ID
+    // Require authentication
     if (!userId) {
-      userId = 'demo-user-1'
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
     }
 
     const { id: idParam } = await params
@@ -115,9 +118,12 @@ export async function DELETE(
     const session = await getServerSession(authOptions)
     let userId = (session?.user as any)?.id
 
-    // If no session, use demo user ID
+    // Require authentication
     if (!userId) {
-      userId = 'demo-user-1'
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
     }
 
     const { id: sessionId } = await params

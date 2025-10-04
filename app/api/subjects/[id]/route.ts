@@ -5,42 +5,61 @@ import { dbService } from '@/lib/database'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
+    // Get session using NextAuth's standard method
     const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    // Require authentication for updating subjects
-    if (!userId) {
+    
+    if (!session?.user || !(session.user as any).id) {
+      console.log('PUT /api/subjects/[id] - No authenticated user found')
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const { id: subjectId } = await params
-    const body = await request.json()
+    const userId = (session.user as any).id
+    const subjectId = params.id
+    console.log('PUT /api/subjects/[id] - User ID:', userId, 'Subject ID:', subjectId)
 
-    // Verify the subject belongs to the user
+    const body = await request.json()
+    
+    // Check if the subject belongs to the user
     const existingSubject = await dbService.getPrisma().subject.findFirst({
-      where: { id: subjectId, userId: userId }
+      where: {
+        id: subjectId,
+        userId: userId
+      }
     })
 
     if (!existingSubject) {
-      return NextResponse.json({ error: 'Subject not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Subject not found or access denied' },
+        { status: 404 }
+      )
     }
 
-    // Merge existing data with updates to prevent data loss
+    // Update the subject
     const updatedSubject = await dbService.getPrisma().subject.update({
-      where: { id: subjectId },
+      where: {
+        id: subjectId
+      },
       data: {
-        ...existingSubject, // Start with existing data
-        ...body,            // Overlay with provided updates
-        // Ensure specific types/formats if needed
-        nextExam: body.nextExam ? new Date(body.nextExam) : (body.nextExam === null ? null : existingSubject.nextExam),
-        // Ensure order is handled correctly, as it's a specific update
-        order: body.order !== undefined ? body.order : existingSubject.order
+        name: body.name,
+        color: body.color,
+        description: body.description,
+        code: body.code,
+        credits: body.credits,
+        instructor: body.instructor,
+        totalChapters: body.totalChapters,
+        completedChapters: body.completedChapters,
+        progress: body.progress,
+        nextExam: body.nextExam ? new Date(body.nextExam) : null,
+        assignmentsDue: body.assignmentsDue,
+            visibility: 'public',
+        order: body.order,
+        updatedAt: new Date()
       }
     })
 
@@ -62,33 +81,44 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
+    // Get session using NextAuth's standard method
     const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    // Require authentication for deleting subjects
-    if (!userId) {
+    
+    if (!session?.user || !(session.user as any).id) {
+      console.log('DELETE /api/subjects/[id] - No authenticated user found')
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const { id: subjectId } = await params
+    const userId = (session.user as any).id
+    const subjectId = params.id
+    console.log('DELETE /api/subjects/[id] - User ID:', userId, 'Subject ID:', subjectId)
 
-    // Verify the subject belongs to the user
+    // Check if the subject belongs to the user
     const existingSubject = await dbService.getPrisma().subject.findFirst({
-      where: { id: subjectId, userId: userId }
+      where: {
+        id: subjectId,
+        userId: userId
+      }
     })
 
     if (!existingSubject) {
-      return NextResponse.json({ error: 'Subject not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Subject not found or access denied' },
+        { status: 404 }
+      )
     }
 
+    // Delete the subject
     await dbService.getPrisma().subject.delete({
-      where: { id: subjectId }
+      where: {
+        id: subjectId
+      }
     })
 
     return NextResponse.json({ success: true })
@@ -96,54 +126,6 @@ export async function DELETE(
     console.error('Failed to delete subject:', error)
     return NextResponse.json(
       { error: 'Failed to delete subject' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    // Require authentication for updating subjects
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const { id: subjectId } = await params
-    const body = await request.json()
-
-    // Verify the subject belongs to the user
-    const existingSubject = await dbService.getPrisma().subject.findFirst({
-      where: { id: subjectId, userId: userId }
-    })
-
-    if (!existingSubject) {
-      return NextResponse.json({ error: 'Subject not found' }, { status: 404 })
-    }
-
-    // Update chapter progress
-    const updatedSubject = await dbService.getPrisma().subject.update({
-      where: { id: subjectId },
-      data: {
-        totalChapters: body.totalChapters,
-        completedChapters: body.completedChapters,
-        progress: body.progress
-      }
-    })
-
-    return NextResponse.json(updatedSubject)
-  } catch (error) {
-    console.error('Failed to update subject progress:', error)
-    return NextResponse.json(
-      { error: 'Failed to update subject progress' },
       { status: 500 }
     )
   }

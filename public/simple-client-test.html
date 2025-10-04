@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Client Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        button { padding: 10px 20px; margin: 5px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1976d2; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Simple Client Test</h1>
+    
+    <div>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <button id="sendPingBtn" onclick="sendPing()" disabled>Send Ping</button>
+        <button id="sendAuthBtn" onclick="sendAuth()" disabled>Send Auth</button>
+        <button id="clearBtn" onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="status" class="log info">Not connected</div>
+    <div id="log"></div>
+    
+    <script>
+        // Simple WebSocket client implementation
+        class SimpleWebSocketClient {
+            constructor() {
+                this.ws = null;
+                this.connectionUrl = 'ws://localhost:3000/api/ws';
+                this.isConnecting = false;
+            }
+
+            connect() {
+                return new Promise((resolve, reject) => {
+                    if (this.isConnecting) {
+                        resolve();
+                        return;
+                    }
+
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        resolve();
+                        return;
+                    }
+
+                    this.isConnecting = true;
+                    addLog('🔌 Simple Client: Connecting...', 'info');
+
+                    try {
+                        this.ws = new WebSocket(this.connectionUrl);
+
+                        this.ws.onopen = (event) => {
+                            addLog('✅ Simple Client: Connected successfully', 'success');
+                            updateStatus('Connected', 'success');
+                            this.isConnecting = false;
+                            document.getElementById('connectBtn').disabled = true;
+                            document.getElementById('disconnectBtn').disabled = false;
+                            document.getElementById('sendPingBtn').disabled = false;
+                            document.getElementById('sendAuthBtn').disabled = false;
+                            resolve();
+                        };
+
+                        this.ws.onmessage = (event) => {
+                            try {
+                                const message = JSON.parse(event.data);
+                                addLog(`📨 Simple Client: Received: ${JSON.stringify(message)}`, 'success');
+                            } catch (error) {
+                                addLog(`📨 Simple Client: Received (raw): ${event.data}`, 'success');
+                            }
+                        };
+
+                        this.ws.onclose = (event) => {
+                            addLog(`❌ Simple Client: Disconnected - Code: ${event.code}, Reason: "${event.reason}", Clean: ${event.wasClean}`, 'error');
+                            updateStatus(`Disconnected (Code: ${event.code})`, 'error');
+                            this.isConnecting = false;
+                            document.getElementById('connectBtn').disabled = false;
+                            document.getElementById('disconnectBtn').disabled = true;
+                            document.getElementById('sendPingBtn').disabled = true;
+                            document.getElementById('sendAuthBtn').disabled = true;
+                        };
+
+                        this.ws.onerror = (error) => {
+                            addLog(`❌ Simple Client: Error: ${error}`, 'error');
+                            this.isConnecting = false;
+                            reject(error);
+                        };
+
+                    } catch (error) {
+                        this.isConnecting = false;
+                        addLog(`❌ Simple Client: Connection Error: ${error.message}`, 'error');
+                        reject(error);
+                    }
+                });
+            }
+
+            sendMessage(message) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    try {
+                        addLog(`📤 Simple Client: Sending: ${JSON.stringify(message)}`, 'info');
+                        this.ws.send(JSON.stringify(message));
+                    } catch (error) {
+                        addLog(`❌ Simple Client: Error sending: ${error.message}`, 'error');
+                    }
+                } else {
+                    addLog('⚠️ Simple Client: Cannot send, connection not open', 'error');
+                }
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close(1000, 'Client disconnecting');
+                    this.ws = null;
+                }
+            }
+
+            isConnected() {
+                return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+            }
+        }
+
+        let client = new SimpleWebSocketClient();
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `log ${type}`;
+        }
+        
+        function connect() {
+            client.connect().catch(error => {
+                addLog(`❌ Connection failed: ${error.message}`, 'error');
+            });
+        }
+        
+        function disconnect() {
+            client.disconnect();
+        }
+        
+        function sendPing() {
+            client.sendMessage({ type: 'ping', timestamp: Date.now() });
+        }
+        
+        function sendAuth() {
+            client.sendMessage({ type: 'auth', userId: 'test-user-123' });
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-connect on page load
+        window.onload = function() {
+            addLog('🚀 Simple client test page loaded', 'info');
+            connect();
+        };
+    </script>
+</body>
+</html>

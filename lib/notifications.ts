@@ -37,7 +37,8 @@ class NotificationManager {
       const response = await fetch('/api/notifications')
       if (response.ok) {
         const data = await response.json()
-        this.notifications = data.map((n: Record<string, unknown>) => ({
+        const notifications = data.notifications || []
+        this.notifications = notifications.map((n: Record<string, unknown>) => ({
           ...n,
           timestamp: new Date(n.timestamp as string)
         })) as StudyNotification[]

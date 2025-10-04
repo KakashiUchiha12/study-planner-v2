@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { pusherClient } from "@/lib/pusher"
+import socketIOClient from "@/lib/socketio-client"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
 
@@ -17,11 +17,11 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
 
   useEffect(() => {
     // Skip if Pusher is not available or no session
-    if (!pusherClient || !session?.user?.email) return
+    if (!socketIOClient || !session?.user?.email) return
 
     try {
       const userId = session.user.email
-      const channel = pusherClient.subscribe(`user-${userId}`)
+      const channel = socketIOClient.subscribe(`user-${userId}`)
       channelRef.current = channel
 
       // Listen for data updates
@@ -46,8 +46,8 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
       })
 
       return () => {
-        if (channelRef.current && pusherClient) {
-          pusherClient.unsubscribe(`user-${userId}`)
+        if (channelRef.current && socketIOClient) {
+          socketIOClient.unsubscribe(`user-${userId}`)
           channelRef.current = null
         }
       }
@@ -77,7 +77,7 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
   }
 
   // Return a safe default if Pusher is not available
-  if (!pusherClient) {
+  if (!socketIOClient) {
     return { 
       triggerUpdate: async () => {
         console.warn("Real-time sync not available - Pusher not configured")

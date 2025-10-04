@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug WebSocket Client Test</title>
+</head>
+<body>
+    <h1>Debug WebSocket Client Test</h1>
+    <div id="status">Testing...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ': ' + msg;
+            messages.appendChild(div);
+            console.log(msg);
+        }
+        
+        addMessage('Testing debug WebSocket client...');
+        
+        // Create a simple WebSocket connection
+        const ws = new WebSocket('ws://localhost:3000/api/ws');
+        
+        ws.onopen = function(event) {
+            addMessage('✅ WebSocket connected successfully!');
+            status.textContent = 'Connected';
+            status.style.color = 'green';
+            
+            // Send a test message
+            addMessage('📤 Sending test message...');
+            ws.send(JSON.stringify({ type: 'test', message: 'Hello from debug test!' }));
+        };
+        
+        ws.onmessage = function(event) {
+            addMessage('📨 Received: ' + event.data);
+        };
+        
+        ws.onclose = function(event) {
+            addMessage('❌ WebSocket closed - Code: ' + event.code + ', Reason: ' + event.reason + ', Clean: ' + event.wasClean);
+            status.textContent = 'Disconnected';
+            status.style.color = 'red';
+        };
+        
+        ws.onerror = function(error) {
+            addMessage('🚨 WebSocket error: ' + error);
+            status.textContent = 'Error';
+            status.style.color = 'red';
+        };
+    </script>
+</body>
+</html>

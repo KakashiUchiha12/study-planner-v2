@@ -2,14 +2,21 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from './use-session-simple'
 import { UserProfile, CreateProfileData, UpdateProfileData } from '@/lib/database'
 
-// Extended interface to include user data
-interface UserProfileWithUser extends UserProfile {
-  user: {
-    id: string
-    name: string
-    email: string
-    image?: string | null
-  }
+// Extended interface to include user data (flattened structure from API)
+interface UserProfileWithUser {
+  id: string
+  name: string | null
+  email: string
+  image?: string | null
+  createdAt: string
+  updatedAt: string
+  fullName: string
+  university: string
+  program: string
+  currentYear: string
+  gpa: string
+  bio: string
+  profilePicture?: string | null
 }
 
 // Extended session user interface
@@ -144,6 +151,7 @@ export function useProfile(): UseProfileReturn {
       }
       
       const updatedProfile = await response.json()
+      console.log('Profile update API response:', updatedProfile);
       setProfile(updatedProfile)
     } catch (err) {
       console.error('Error updating profile:', err)

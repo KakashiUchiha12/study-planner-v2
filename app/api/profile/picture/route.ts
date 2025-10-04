@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-utils'
-import { profileService } from '@/lib/database'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { dbService } from '@/lib/database'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await requireAuth()
+    const session = await getServerSession(authOptions)
+    if (!session?.user || !(session.user as any).id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    
+    const userId = (session.user as any).id
     console.log('Profile picture upload for user:', userId)
     
     const formData = await request.formData()
@@ -65,23 +71,37 @@ export async function POST(request: NextRequest) {
     console.log('Relative path for database:', relativePath)
 
     // Update profile in database
-    const updatedProfile = await profileService.updateProfilePicture(userId, relativePath)
-    console.log('Profile updated in database:', updatedProfile)
+    const prisma = dbService.getPrisma()
+    
+    // Update both User.image and UserProfile.profilePicture for consistency
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { image: relativePath }
+    })
+    
+    // Also update or create UserProfile.profilePicture
+    const updatedProfile = await prisma.userProfile.upsert({
+      where: { userId: userId },
+      update: {
+        profilePicture: relativePath
+      },
+      create: {
+        userId: userId,
+        fullName: updatedUser.name || 'User',
+        profilePicture: relativePath
+      }
+    })
+    
+    console.log('User and profile updated in database:', { updatedUser, updatedProfile })
 
     return NextResponse.json({
       success: true,
       profilePicture: relativePath,
-      profile: updatedProfile
+      profile: updatedProfile,
+      user: updatedUser
     })
 
   } catch (error) {
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-    
     console.error('Error uploading profile picture:', error)
     return NextResponse.json(
       { error: 'Failed to upload profile picture' },

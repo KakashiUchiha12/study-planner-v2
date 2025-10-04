@@ -68,3 +68,71 @@ export async function GET(
     )
   }
 }
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user || !(session.user as any).id) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const userId = (session.user as any).id
+    const { id } = await params
+    
+    // Get file info from database
+    const file = await fileService.getFileById(id, userId)
+    
+    if (!file) {
+      return NextResponse.json(
+        { error: 'File not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if user has access to this file
+    if (file.userId !== userId) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Get the thumbnail data from request body
+    const { thumbnailDataUrl } = await request.json()
+    
+    if (!thumbnailDataUrl || typeof thumbnailDataUrl !== 'string') {
+      return NextResponse.json(
+        { error: 'Invalid thumbnail data' },
+        { status: 400 }
+      )
+    }
+
+    // Save the thumbnail to the file system
+    const success = await fileService.saveThumbnail(id, thumbnailDataUrl)
+    
+    if (success) {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Thumbnail saved successfully' 
+      })
+    } else {
+      return NextResponse.json({ 
+        error: 'Failed to save thumbnail' 
+      }, { status: 500 })
+    }
+
+  } catch (error) {
+    console.error('Error saving thumbnail:', error)
+    return NextResponse.json(
+      { error: 'Failed to save thumbnail' },
+      { status: 500 }
+    )
+  }
+}

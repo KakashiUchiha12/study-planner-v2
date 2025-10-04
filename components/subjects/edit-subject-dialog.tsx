@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X, Plus } from "lucide-react"
 
 interface Subject {
@@ -183,6 +184,7 @@ export function EditSubjectDialog({ open, onOpenChange, subject, onEditSubject }
               onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
             />
           </div>
+
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

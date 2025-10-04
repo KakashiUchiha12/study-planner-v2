@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Browser Console Test</title>
+</head>
+<body>
+    <h1>Browser Console Test</h1>
+    <div id="status">Testing...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ': ' + msg;
+            messages.appendChild(div);
+            console.log('🔌 Browser Test:', msg);
+        }
+        
+        addMessage('Starting browser console test...');
+        
+        // Test 1: Basic WebSocket connection
+        addMessage('Test 1: Basic WebSocket connection');
+        const ws1 = new WebSocket('ws://localhost:3000/api/ws');
+        
+        ws1.onopen = function(event) {
+            addMessage('✅ Test 1: WebSocket connected successfully!');
+            status.textContent = 'Connected';
+            status.style.color = 'green';
+        };
+        
+        ws1.onmessage = function(event) {
+            addMessage('📨 Test 1: Received: ' + event.data);
+        };
+        
+        ws1.onclose = function(event) {
+            addMessage('❌ Test 1: WebSocket closed - Code: ' + event.code + ', Reason: ' + event.reason + ', Clean: ' + event.wasClean);
+        };
+        
+        ws1.onerror = function(error) {
+            addMessage('🚨 Test 1: WebSocket error: ' + error);
+        };
+        
+        // Test 2: Check if there are any global WebSocket clients
+        setTimeout(() => {
+            addMessage('Test 2: Checking for global WebSocket clients...');
+            if (window.__workingWsClient) {
+                addMessage('Found window.__workingWsClient');
+            } else {
+                addMessage('No window.__workingWsClient found');
+            }
+            
+            if (window.__debugWsClient) {
+                addMessage('Found window.__debugWsClient');
+            } else {
+                addMessage('No window.__debugWsClient found');
+            }
+        }, 2000);
+        
+        // Test 3: Check console for any errors
+        setTimeout(() => {
+            addMessage('Test 3: Check browser console for any errors or logs');
+        }, 3000);
+    </script>
+</body>
+</html>
